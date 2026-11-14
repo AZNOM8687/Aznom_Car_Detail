@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "projects": {
+    "aznom-web": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/aznom-web",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "tsConfig": "tsconfig.json",
+            "assets": [{"glob": "**/*", "input": "public"}],
+            "styles": ["src/styles.css"]
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": { "buildTarget": "aznom-web:build" }
+        }
+      }
+    }
+  },
+  "cli": { "analytics": false }
+}
