@@ -28,63 +28,140 @@
       </details>
     </section>
   </main>
-} @else if (telaAgenda) {
+} @else if (telaAgenda || telaConta || telaPainel) {
   <header class="barra">
     <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
     <a href="./">← Voltar ao início</a>
   </header>
   <main>
-    <section class="catalogo" aria-labelledby="titulo-agenda">
-      <h1 id="titulo-agenda">Agenda da AZNOM</h1>
-      <p>Escolha um horário ou uma turma. A confirmação é feita pelo WhatsApp.</p>
-      <div class="acoes" role="group" aria-label="Tipo de agenda">
-        <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'servicos'"
-          [attr.aria-pressed]="abaAgenda() === 'servicos'" (click)="trocarAbaAgenda('servicos')">Serviços</button>
-        <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'cursos'"
-          [attr.aria-pressed]="abaAgenda() === 'cursos'" (click)="trocarAbaAgenda('cursos')">Cursos</button>
-      </div>
+    @if (carregandoConta()) {
+      <p class="catalogo" role="status">Verificando a sessão…</p>
+    } @else if (!conta()) {
+      <section class="catalogo" aria-labelledby="titulo-conta">
+        <h1 id="titulo-conta">{{ cadastro() ? 'Criar conta' : 'Entrar na sua conta' }}</h1>
+        <p>Entre para consultar os horários dos serviços e as datas das turmas.</p>
+        <form class="form-conta" (submit)="autenticar($event, email.value, senha.value)">
+          <label>E-mail <input #email type="email" autocomplete="email" maxlength="254" required></label>
+          <label>Senha <input #senha type="password" [attr.autocomplete]="cadastro() ? 'new-password' : 'current-password'" minlength="10" maxlength="128" required></label>
+          <button class="botao" type="submit" [disabled]="ocupado()">{{ cadastro() ? 'Criar conta' : 'Entrar' }}</button>
+        </form>
+        <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="alternarCadastro()">
+          {{ cadastro() ? 'Já tenho conta' : 'Criar uma conta' }}
+        </button>
+      </section>
+    } @else {
+      <section class="catalogo" aria-label="Minha conta">
+        <div class="acoes">
+          <a href="./?tela=agenda">Ver agenda</a>
+          @if (conta()?.papel === 'admin') {
+            <a href="./?tela=painel">Painel administrativo</a>
+          }
+          <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="sair()">Sair</button>
+        </div>
+      </section>
+      @if (telaPainel) {
+        @if (conta()?.papel === 'admin') {
+          <section class="catalogo" aria-labelledby="titulo-painel">
+            <h1 id="titulo-painel">Painel da agenda</h1>
+            <h2>{{ editando() ? 'Editar disponibilidade' : 'Nova disponibilidade' }}</h2>
+            <form class="form-conta" (submit)="salvarItem($event, tipo.value, inicio.value, fim.value, hora.value)">
+              <label>Tipo
+                <select #tipo [value]="editando()?.tipo ?? 'servicos'">
+                  <option value="servicos">Atendimento</option>
+                  <option value="cursos">Turma</option>
+                </select>
+              </label>
+              <label>Data de início <input #inicio type="date" [value]="editando()?.inicio ?? ''" required></label>
+              <label>Hora do atendimento <input #hora type="time" [value]="editando()?.hora ?? ''"></label>
+              <label>Data de término da turma <input #fim type="date" [value]="editando()?.fim ?? ''"></label>
+              <p>Preencha a hora para atendimento ou a data de término para turma.</p>
+              <div class="acoes">
+                <button class="botao" type="submit" [disabled]="ocupado()">Salvar</button>
+                @if (editando()) {
+                  <button class="botao botao-secundario" type="button" (click)="editando.set(null)">Cancelar edição</button>
+                }
+              </div>
+            </form>
+            <h2>Disponibilidades publicadas</h2>
+            <div class="grade">
+              @for (item of itensAgenda(); track item.id) {
+                <article class="card card-texto">
+                  <h3>{{ item.tipo === 'servicos' ? 'Atendimento' : 'Turma' }}</h3>
+                  <p>{{ dataBr(item.inicio) }} {{ item.fim ? 'a ' + dataBr(item.fim) : 'às ' + item.hora }}</p>
+                  <div class="acoes">
+                    <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="editando.set(item)">Editar</button>
+                    <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="removerItem(item.id)">Remover</button>
+                  </div>
+                </article>
+              } @empty {
+                <p>Nenhuma disponibilidade publicada.</p>
+              }
+            </div>
+          </section>
+        } @else {
+          <p class="catalogo">O painel é exclusivo do administrador.</p>
+        }
+      } @else if (telaAgenda) {
+        @if (ocupado()) {
+          <p class="catalogo" role="status">Carregando agenda…</p>
+        } @else {
+          <section class="catalogo" aria-labelledby="titulo-agenda">
+            <h1 id="titulo-agenda">Agenda da AZNOM</h1>
+            <p>Escolha um horário ou uma turma. A confirmação é feita pelo WhatsApp.</p>
+            <div class="acoes" role="group" aria-label="Tipo de agenda">
+              <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'servicos'"
+                [attr.aria-pressed]="abaAgenda() === 'servicos'" (click)="trocarAbaAgenda('servicos')">Serviços</button>
+              <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'cursos'"
+                [attr.aria-pressed]="abaAgenda() === 'cursos'" (click)="trocarAbaAgenda('cursos')">Cursos</button>
+            </div>
 
-      <div class="agenda-tabela">
-        <table>
-          <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso de uma semana' }}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{{ abaAgenda() === 'servicos' ? 'Data' : 'Início' }}</th>
-              <th scope="col">{{ abaAgenda() === 'servicos' ? 'Horário' : 'Término' }}</th>
-              <th scope="col">Escolher</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (opcao of opcoesAgenda(); track opcao.rotulo) {
-              <tr [class.linha-selecionada]="selecaoAgenda() === opcao.rotulo">
-                <td>{{ opcao.primeiraColuna }}</td>
-                <td>{{ opcao.segundaColuna }}</td>
-                <td>
-                  <label>
-                    <input type="radio" name="opcao-agenda" [checked]="selecaoAgenda() === opcao.rotulo"
-                      (change)="selecaoAgenda.set(opcao.rotulo)" [attr.aria-label]="'Selecionar ' + opcao.rotulo">
-                    Selecionar
-                  </label>
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="3">{{ abaAgenda() === 'servicos' ? 'Ainda não há horários publicados.' : 'Ainda não há turmas publicadas.' }}</td>
-              </tr>
+            <div class="agenda-tabela">
+              <table>
+                <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso de uma semana' }}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">{{ abaAgenda() === 'servicos' ? 'Data' : 'Início' }}</th>
+                    <th scope="col">{{ abaAgenda() === 'servicos' ? 'Horário' : 'Término' }}</th>
+                    <th scope="col">Escolher</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (opcao of opcoesAgenda(); track opcao.id) {
+                    <tr [class.linha-selecionada]="selecaoAgenda() === opcao.rotulo">
+                      <td>{{ opcao.primeiraColuna }}</td>
+                      <td>{{ opcao.segundaColuna }}</td>
+                      <td>
+                        <label>
+                          <input type="radio" name="opcao-agenda" [checked]="selecaoAgenda() === opcao.rotulo"
+                            (change)="selecaoAgenda.set(opcao.rotulo)" [attr.aria-label]="'Selecionar ' + opcao.rotulo">
+                          Selecionar
+                        </label>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="3">{{ abaAgenda() === 'servicos' ? 'Ainda não há horários publicados.' : 'Ainda não há turmas publicadas.' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (selecaoAgenda()) {
+              <p role="status">Você escolheu <strong>{{ selecaoAgenda() }}</strong>.</p>
+              <a class="botao" [href]="solicitarAgenda()">Solicitar pelo WhatsApp</a>
+            } @else {
+              <p><a [href]="abaAgenda() === 'servicos'
+                ? whatsapp('Olá, AZNOM! Quais são os horários disponíveis?')
+                : curso">Consultar disponibilidade pelo WhatsApp</a></p>
             }
-          </tbody>
-        </table>
-      </div>
-
-      @if (selecaoAgenda()) {
-        <p role="status">Você escolheu <strong>{{ selecaoAgenda() }}</strong>.</p>
-        <a class="botao" [href]="solicitarAgenda()">Solicitar pelo WhatsApp</a>
-      } @else {
-        <p><a [href]="abaAgenda() === 'servicos'
-          ? whatsapp('Olá, AZNOM! Quais são os horários disponíveis?')
-          : curso">Consultar disponibilidade pelo WhatsApp</a></p>
+          </section>
+        }
       }
-    </section>
+    }
+    @if (mensagem()) {
+      <p class="catalogo" role="status">{{ mensagem() }}</p>
+    }
   </main>
 } @else {
   <header class="barra">
@@ -95,6 +172,7 @@
       <a href="./?tela=agenda">Agenda</a>
       <a href="#curso">Curso</a>
       <a href="#contato">Contato</a>
+      <a href="./?tela=conta">Entrar</a>
     </nav>
   </header>
   <main>
