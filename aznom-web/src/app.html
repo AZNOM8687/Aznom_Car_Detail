@@ -1,94 +1,179 @@
-<header class="barra">
-  <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
-  <nav aria-label="Navegação principal">
-    <a href="#servicos">Serviços</a>
-    <a href="#galeria">Galeria</a>
-    <a href="#curso">Curso</a>
-    <a href="#contato">Contato</a>
-  </nav>
-</header>
-<main>
-  <section class="abertura" aria-labelledby="titulo">
-    <img class="logo-principal" src="imagens/monza-logo.webp" width="1774" height="887" alt="Logo da AZNOM CAR DETAIL, ilustração de um Monza branco">
-    <div>
-      <p class="categoria">AZNOM CAR DETAIL</p>
-      <h1 id="titulo">Estética automotiva</h1>
-      <p>Lavagem detalhada, correção de pintura e proteção para o seu carro.</p>
-      <div class="acoes">
-        <a class="botao" href="#agendamento">Agendar serviço</a>
-        <a class="botao botao-secundario" href="#curso">Conhecer o curso</a>
+@if (telaGaleria) {
+  <header class="barra">
+    <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
+    <a href="./">← Voltar ao início</a>
+  </header>
+  <main>
+    <section class="catalogo trabalhos" id="galeria" aria-labelledby="titulo-galeria">
+      <h1 id="titulo-galeria">Galeria de serviços</h1>
+      <h3>Trabalhos da AZNOM · restauração de faróis</h3>
+      <div class="comparacao">
+        <figure><img src="imagens/farol-antes.png" loading="lazy" alt="Farol opaco do carro vermelho"><figcaption>Carro vermelho · antes</figcaption></figure>
+        <figure><img src="imagens/farol-depois.png" loading="lazy" alt="Farol do carro vermelho após a restauração"><figcaption>Carro vermelho · depois</figcaption></figure>
+        <figure><img src="imagens/farol-prata-antes.webp" loading="lazy" alt="Farol opaco do carro prata"><figcaption>Carro prata · antes</figcaption></figure>
+        <figure><img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração"><figcaption>Carro prata · depois</figcaption></figure>
       </div>
-    </div>
-  </section>
+      <details>
+        <summary>Ver imagens ilustrativas de serviços</summary>
+        <div class="grade galeria-extra">
+          @for (foto of ilustracoes; track foto.arquivo) {
+            <figure class="card">
+              <a [href]="'imagens/' + foto.arquivo + '.webp'">
+                <img [src]="'imagens/' + foto.arquivo + '.webp'" [alt]="foto.titulo" loading="lazy">
+              </a>
+              <figcaption>{{ foto.titulo }}</figcaption>
+            </figure>
+          }
+        </div>
+      </details>
+    </section>
+  </main>
+} @else if (telaAgenda) {
+  <header class="barra">
+    <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
+    <a href="./">← Voltar ao início</a>
+  </header>
+  <main>
+    <section class="catalogo" aria-labelledby="titulo-agenda">
+      <h1 id="titulo-agenda">Agenda da AZNOM</h1>
+      <p>Escolha um horário ou uma turma. A confirmação é feita pelo WhatsApp.</p>
+      <div class="acoes" role="group" aria-label="Tipo de agenda">
+        <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'servicos'"
+          [attr.aria-pressed]="abaAgenda() === 'servicos'" (click)="trocarAbaAgenda('servicos')">Serviços</button>
+        <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'cursos'"
+          [attr.aria-pressed]="abaAgenda() === 'cursos'" (click)="trocarAbaAgenda('cursos')">Cursos</button>
+      </div>
 
-  <section class="catalogo" id="servicos" aria-labelledby="titulo-servicos">
-    <h2 id="titulo-servicos">Nossos serviços</h2>
-    @if (estado() === 'carregando') {
-      <p role="status">Carregando serviços…</p>
-    } @else {
-      @if (estado() === 'reserva') {
-        <div class="aviso" role="status">
-          <p>Exibindo o catálogo inicial. Confirme a disponibilidade pelo WhatsApp.</p>
-          <button class="botao botao-secundario" type="button" (click)="carregar()">Atualizar catálogo</button>
+      <div class="agenda-tabela">
+        <table>
+          <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso de uma semana' }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ abaAgenda() === 'servicos' ? 'Data' : 'Início' }}</th>
+              <th scope="col">{{ abaAgenda() === 'servicos' ? 'Horário' : 'Término' }}</th>
+              <th scope="col">Escolher</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (opcao of opcoesAgenda(); track opcao.rotulo) {
+              <tr [class.linha-selecionada]="selecaoAgenda() === opcao.rotulo">
+                <td>{{ opcao.primeiraColuna }}</td>
+                <td>{{ opcao.segundaColuna }}</td>
+                <td>
+                  <label>
+                    <input type="radio" name="opcao-agenda" [checked]="selecaoAgenda() === opcao.rotulo"
+                      (change)="selecaoAgenda.set(opcao.rotulo)" [attr.aria-label]="'Selecionar ' + opcao.rotulo">
+                    Selecionar
+                  </label>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="3">{{ abaAgenda() === 'servicos' ? 'Ainda não há horários publicados.' : 'Ainda não há turmas publicadas.' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (selecaoAgenda()) {
+        <p role="status">Você escolheu <strong>{{ selecaoAgenda() }}</strong>.</p>
+        <a class="botao" [href]="solicitarAgenda()">Solicitar pelo WhatsApp</a>
+      } @else {
+        <p><a [href]="abaAgenda() === 'servicos'
+          ? whatsapp('Olá, AZNOM! Quais são os horários disponíveis?')
+          : curso">Consultar disponibilidade pelo WhatsApp</a></p>
+      }
+    </section>
+  </main>
+} @else {
+  <header class="barra">
+    <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
+    <nav aria-label="Navegação principal">
+      <a href="#servicos">Serviços</a>
+      <a href="./?tela=galeria">Galeria</a>
+      <a href="./?tela=agenda">Agenda</a>
+      <a href="#curso">Curso</a>
+      <a href="#contato">Contato</a>
+    </nav>
+  </header>
+  <main>
+    <section class="abertura" aria-labelledby="titulo">
+      <img class="logo-principal" src="imagens/monza-logo.webp" width="1774" height="887" alt="Logo da AZNOM CAR DETAIL, ilustração de um Monza branco">
+      <div>
+        <p class="categoria">AZNOM CAR DETAIL</p>
+        <h1 id="titulo">Estética automotiva</h1>
+        <p>Lavagem detalhada, correção de pintura e proteção para o seu carro.</p>
+        <div class="acoes">
+          <a class="botao" href="#agendamento">Agendar serviço</a>
+          <a class="botao botao-secundario" href="#curso">Conhecer o curso</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="catalogo trabalhos" aria-label="Galeria e agenda">
+      <div class="grade">
+        <article class="card card-texto">
+          <h2>Ver imagens dos serviços</h2>
+          <p>Confira fotos de antes e depois e exemplos de serviços.</p>
+          <a class="botao" href="./?tela=galeria">Abrir galeria</a>
+        </article>
+        <article class="card card-texto">
+          <h2>Ver agenda</h2>
+          <p>Consulte horários de atendimento e turmas do curso.</p>
+          <a class="botao" href="./?tela=agenda">Abrir agenda</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalogo" id="servicos" aria-labelledby="titulo-servicos">
+      <h2 id="titulo-servicos">Nossos serviços</h2>
+      @if (estado() === 'carregando') {
+        <p role="status">Carregando serviços…</p>
+      } @else {
+        @if (estado() === 'reserva') {
+          <div class="aviso" role="status">
+            <p>Exibindo o catálogo inicial. Confirme a disponibilidade pelo WhatsApp.</p>
+            <button class="botao botao-secundario" type="button" (click)="carregar()">Atualizar catálogo</button>
+          </div>
+        }
+        <div class="grade">
+          @for (servico of servicos(); track servico.id) {
+            <article class="card card-texto">
+              <h3>{{ servico.nome }}</h3>
+              <p>{{ servico.descricao }}</p>
+              <a class="link-servico" [href]="whatsapp('Olá, AZNOM! Gostaria de agendar: ' + servico.nome + '. Qual a disponibilidade?')" [attr.aria-label]="'Consultar horário para ' + servico.nome">Consultar horário ↗</a>
+            </article>
+          } @empty {
+            <p>Nenhum serviço disponível no momento.</p>
+          }
         </div>
       }
-      <div class="grade">
-        @for (servico of servicos(); track servico.id) {
-          <article class="card card-texto">
-            <h3>{{ servico.nome }}</h3>
-            <p>{{ servico.descricao }}</p>
-            <a class="link-servico" [href]="whatsapp('Olá, AZNOM! Gostaria de agendar: ' + servico.nome + '. Qual a disponibilidade?')" [attr.aria-label]="'Consultar horário para ' + servico.nome">Consultar horário ↗</a>
-          </article>
-        } @empty {
-          <p>Nenhum serviço disponível no momento.</p>
-        }
-      </div>
-    }
-  </section>
+    </section>
 
-  <section class="catalogo trabalhos" id="galeria" aria-labelledby="titulo-galeria">
-    <h2 id="titulo-galeria">Galeria</h2>
-    <h3>Trabalhos da AZNOM · restauração de faróis</h3>
-    <div class="comparacao">
-      <figure><img src="imagens/farol-antes.png" loading="lazy" alt="Farol opaco do carro vermelho"><figcaption>Carro vermelho · antes</figcaption></figure>
-      <figure><img src="imagens/farol-depois.png" loading="lazy" alt="Farol do carro vermelho após a restauração"><figcaption>Carro vermelho · depois</figcaption></figure>
-      <figure><img src="imagens/farol-prata-antes.webp" loading="lazy" alt="Farol opaco do carro prata"><figcaption>Carro prata · antes</figcaption></figure>
-      <figure><img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração"><figcaption>Carro prata · depois</figcaption></figure>
-    </div>
-    <details>
-      <summary>Ver imagens ilustrativas de serviços</summary>
-      <div class="grade galeria-extra">
-        @for (foto of ilustracoes; track foto.arquivo) {
-          <figure class="card">
-            <a [href]="'imagens/' + foto.arquivo + '.webp'">
-              <img [src]="'imagens/' + foto.arquivo + '.webp'" [alt]="foto.titulo" loading="lazy">
-            </a>
-            <figcaption>{{ foto.titulo }}</figcaption>
-          </figure>
-        }
-      </div>
-    </details>
-  </section>
 
-  <section class="catalogo curso" id="curso" aria-labelledby="titulo-curso">
-    <p class="categoria">CURSO DE ESTÉTICA AUTOMOTIVA · 1 SEMANA</p>
-    <h2 id="titulo-curso">Aprenda do primeiro enxágue ao acabamento final</h2>
-    <p>Em uma semana, Marllon apresenta os principais serviços da estética automotiva e explica a finalidade e as etapas de cada técnica.</p>
-    <ul>
-      <li>Lavagem técnica e descontaminação da pintura</li>
-      <li>Higienização interna</li>
-      <li>Polimento e vitrificação de pintura</li>
-      <li>Restauração de faróis</li>
-    </ul>
-    <a class="botao" [href]="curso">Consultar datas e vagas</a>
-  </section>
 
-  <section class="catalogo trabalhos" id="agendamento" aria-labelledby="titulo-agendamento">
-    <h2 id="titulo-agendamento">Agende seu serviço</h2>
-    <p>Informe o modelo do veículo, o serviço desejado e o melhor dia para você. A AZNOM confirma a disponibilidade pelo WhatsApp.</p>
-    <a class="botao" [href]="whatsapp('Olá, AZNOM! Gostaria de agendar um serviço.\nVeículo: \nServiço: \nMelhor dia: ')">Solicitar agendamento pelo WhatsApp</a>
-  </section>
-</main>
+    <section class="catalogo curso" id="curso" aria-labelledby="titulo-curso">
+      <p class="categoria">CURSO DE ESTÉTICA AUTOMOTIVA · 1 SEMANA</p>
+      <h2 id="titulo-curso">Aprenda do primeiro enxágue ao acabamento final</h2>
+      <p>Em uma semana, Marllon apresenta os principais serviços da estética automotiva e explica a finalidade e as etapas de cada técnica.</p>
+      <ul>
+        <li>Lavagem técnica e descontaminação da pintura</li>
+        <li>Higienização interna</li>
+        <li>Polimento e vitrificação de pintura</li>
+        <li>Restauração de faróis</li>
+      </ul>
+      <a class="botao" [href]="curso">Consultar datas e vagas</a>
+    </section>
+
+    <section class="catalogo trabalhos" id="agendamento" aria-labelledby="titulo-agendamento">
+      <h2 id="titulo-agendamento">Agende seu serviço</h2>
+      <p>Informe o modelo do veículo, o serviço desejado e o melhor dia para você. A AZNOM confirma a disponibilidade pelo WhatsApp.</p>
+      <a class="botao" [href]="whatsapp('Olá, AZNOM! Gostaria de agendar um serviço.\nVeículo: \nServiço: \nMelhor dia: ')">Solicitar agendamento pelo WhatsApp</a>
+    </section>
+  </main>
+}
+
 <footer id="contato">
   <strong>AZNOM CAR DETAIL</strong>
   <div class="acoes">
