@@ -14,17 +14,18 @@
         <figure><img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração"><figcaption>Carro prata · depois</figcaption></figure>
       </div>
       <details>
-        <summary>Ver imagens ilustrativas de serviços</summary>
-        <div class="grade galeria-extra">
-          @for (foto of ilustracoes; track foto.arquivo) {
-            <figure class="card">
-              <a [href]="'imagens/' + foto.arquivo + '.webp'">
-                <img [src]="'imagens/' + foto.arquivo + '.webp'" [alt]="foto.titulo" loading="lazy">
-              </a>
-              <figcaption>{{ foto.titulo }}</figcaption>
-            </figure>
-          }
-        </div>
+          <figure>
+      <a [href]="'imagens/' + foto.arquivo + '.webp'">
+        <img
+          [src]="'imagens/' + foto.arquivo + '.webp'"
+          [alt]="foto.titulo"
+          loading="lazy"
+        >
+      </a>
+      <figcaption>{{ foto.titulo }} · Ilustrativa</figcaption>
+    </figure>
+  }
+</div>
       </details>
     </section>
   </main>
