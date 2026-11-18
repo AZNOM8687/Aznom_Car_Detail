@@ -6,6 +6,8 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const banco = new Pool();
+app.disable('x-powered-by');
+app.use(express.json({ limit: '8kb' }));
 
 app.get('/api/servicos', async (req, res) => {
   try {
@@ -23,6 +25,14 @@ app.get('/api/servicos', async (req, res) => {
   }
 });
 
-app.listen(3000, '127.0.0.1', () => {
-  console.log('API disponível em http://127.0.0.1:3000/api/servicos');
+require('./agenda')(app, banco);
+app.use('/api', (req, res) => res.status(404).json({ mensagem: 'Rota não encontrada.' }));
+
+const web = path.join(__dirname, '../aznom-web/dist/aznom-web/browser');
+app.use(express.static(web));
+
+const porta = Number(process.env.PORT || 3000);
+
+app.listen(porta, '0.0.0.0', () => {
+  console.log(`API iniciada na porta ${porta}`);
 });
