@@ -100,3 +100,155 @@ footer .acoes { margin-top: .75rem; overflow-wrap: anywhere; }
 @media (max-width: 680px) {
   .barra { flex-wrap: wrap; padding-block: 1rem; }
 }
+
+/* Interações da abertura, da navegação e dos cards */
+.abertura {
+  background:
+    radial-gradient(ellipse at 24% 58%, #34512b 0%, transparent 54%),
+    radial-gradient(ellipse at top right, #2a4128, transparent 65%),
+    #171d18;
+}
+
+.logo-principal {
+  filter: drop-shadow(0 1rem 1.2rem #0008);
+}
+
+.botao {
+  transition: transform 180ms ease, background-color 180ms ease,
+    border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.botao:not(.botao-secundario) {
+  box-shadow: 0 .25rem .9rem #b9ed6122;
+}
+
+.botao:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.botao:focus-visible {
+  outline-color: #d3ff8c;
+}
+
+.botao:not(:disabled):active {
+  transform: scale(.97);
+}
+
+.card, .comparacao figure {
+  transition: transform 230ms ease, border-color 230ms ease, box-shadow 230ms ease;
+}
+
+.barra nav a, .link-servico {
+  text-underline-offset: .3em;
+  transition: color 180ms ease;
+}
+
+.card:focus-within, .comparacao figure:focus-within {
+  border-color: #94be58;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .botao:not(:disabled):hover {
+    transform: translateY(-3px);
+    box-shadow: 0 .5rem 1.25rem #b9ed6144;
+  }
+
+  .botao:not(.botao-secundario):not(:disabled):hover {
+    background: #dbffa5;
+  }
+
+  .botao-secundario:not(:disabled):hover {
+    border-color: #c6f277;
+    background: #2d402a;
+  }
+
+  .botao:not(:disabled):hover:active {
+    transform: scale(.97);
+  }
+
+  .card:hover, .comparacao figure:hover {
+    transform: translateY(-4px);
+    border-color: #769751;
+    box-shadow: 0 .75rem 1.4rem #0005;
+  }
+
+  .barra nav a:hover, .link-servico:hover {
+    color: #dbffa5;
+    text-decoration: underline;
+  }
+
+  .galeria-extra img {
+    transition: filter 230ms ease;
+  }
+
+  .galeria-extra a:hover img {
+    filter: brightness(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+
+  .abertura > div {
+    animation: entrada-texto 520ms ease-out both;
+  }
+
+  .logo-principal {
+    animation: entrada-monza 700ms cubic-bezier(.2, .75, .3, 1) both;
+  }
+}
+
+@keyframes entrada-texto {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes entrada-monza {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .botao, .card, .comparacao figure, .galeria-extra img {
+    transition: none;
+  }
+
+  .botao:not(:disabled):hover,
+  .botao:not(:disabled):active,
+  .botao:not(:disabled):hover:active,
+  .card:hover, .comparacao figure:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .botao {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .botao::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, #ffffff55 50%, transparent 65%);
+    transform: translateX(-110%);
+    pointer-events: none;
+  }
+
+  .botao:not(:disabled):focus-visible::after {
+    animation: brilho-botao 500ms ease-out;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .botao:not(:disabled):hover::after {
+      animation: brilho-botao 500ms ease-out;
+    }
+  }
+}
+
+@keyframes brilho-botao {
+  to { transform: translateX(110%); }
+}

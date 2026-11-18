@@ -6,27 +6,48 @@
   <main>
     <section class="catalogo trabalhos" id="galeria" aria-labelledby="titulo-galeria">
       <h1 id="titulo-galeria">Galeria de serviços</h1>
-      <h3>Trabalhos da AZNOM · restauração de faróis</h3>
-      <div class="comparacao">
-        <figure><img src="imagens/farol-antes.png" loading="lazy" alt="Farol opaco do carro vermelho"><figcaption>Carro vermelho · antes</figcaption></figure>
-        <figure><img src="imagens/farol-depois.png" loading="lazy" alt="Farol do carro vermelho após a restauração"><figcaption>Carro vermelho · depois</figcaption></figure>
-        <figure><img src="imagens/farol-prata-antes.webp" loading="lazy" alt="Farol opaco do carro prata"><figcaption>Carro prata · antes</figcaption></figure>
-        <figure><img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração"><figcaption>Carro prata · depois</figcaption></figure>
-      </div>
-      <details>
+      <div class="comparacao galeria-extra">
+        <figure>
+          <a href="imagens/farol-antes.png">
+            <img src="imagens/farol-antes.png" loading="lazy" alt="Farol opaco do carro vermelho">
+          </a>
+          <figcaption>Restauração de faróis · carro vermelho · antes</figcaption>
+        </figure>
+        <figure>
+          <a href="imagens/farol-depois.png">
+            <img src="imagens/farol-depois.png" loading="lazy" alt="Farol do carro vermelho após a restauração">
+          </a>
+          <figcaption>Restauração de faróis · carro vermelho · depois</figcaption>
+        </figure>
+        <figure>
+          <a href="imagens/farol-prata-antes.webp">
+            <img src="imagens/farol-prata-antes.webp" loading="lazy" alt="Farol opaco do carro prata">
+          </a>
+          <figcaption>Restauração de faróis · carro prata · antes</figcaption>
+        </figure>
+        <figure>
+          <a href="imagens/farol-prata-depois.webp">
+            <img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração">
+          </a>
+          <figcaption>Restauração de faróis · carro prata · depois</figcaption>
+        </figure>
+        @for (foto of fotosGaleria(); track foto.id) {
           <figure>
-      <a [href]="'imagens/' + foto.arquivo + '.webp'">
-        <img
-          [src]="'imagens/' + foto.arquivo + '.webp'"
-          [alt]="foto.titulo"
-          loading="lazy"
-        >
-      </a>
-      <figcaption>{{ foto.titulo }} · Ilustrativa</figcaption>
-    </figure>
-  }
-</div>
-      </details>
+            <a [href]="'/api/galeria/' + foto.id">
+              <img [src]="'/api/galeria/' + foto.id + '?v=' + versaoFotos()" [alt]="foto.legenda" loading="lazy">
+            </a>
+            <figcaption>{{ foto.legenda }}</figcaption>
+          </figure>
+        }
+        @for (foto of ilustracoes; track foto.arquivo) {
+          <figure>
+            <a [href]="'imagens/' + foto.arquivo + '.webp'">
+              <img [src]="'imagens/' + foto.arquivo + '.webp'" [alt]="foto.titulo" loading="lazy">
+            </a>
+            <figcaption>{{ foto.titulo }}</figcaption>
+          </figure>
+        }
+      </div>
     </section>
   </main>
 } @else if (telaAgenda || telaConta || telaPainel) {
@@ -49,6 +70,10 @@
         <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="alternarCadastro()">
           {{ cadastro() ? 'Já tenho conta' : 'Criar uma conta' }}
         </button>
+        <a class="botao botao-secundario" href="/api/auth/google">Entrar com Google</a>
+        @if (mensagemGoogle) {
+          <p role="status">{{ mensagemGoogle }}</p>
+        }
       </section>
     } @else {
       <section class="catalogo" aria-label="Minha conta">
@@ -57,29 +82,81 @@
           @if (conta()?.papel === 'admin') {
             <a href="./?tela=painel">Painel administrativo</a>
           }
-          <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="sair()">Sair</button>
+          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || galeriaOcupada()" (click)="sair()">Sair</button>
         </div>
       </section>
       @if (telaPainel) {
         @if (conta()?.papel === 'admin') {
           <section class="catalogo" aria-labelledby="titulo-painel">
-            <h1 id="titulo-painel">Painel da agenda</h1>
+            <h1 id="titulo-painel">Painel administrativo</h1>
+            <nav class="acoes" aria-label="Seções do painel">
+              <a href="./?tela=painel#painel-catalogo">Catálogo de serviços</a>
+              <a href="./?tela=painel#painel-agenda">Agenda</a>
+              <a href="./?tela=painel#painel-galeria">Galeria</a>
+            </nav>
+          </section>
+          <section class="catalogo trabalhos" id="painel-catalogo" aria-labelledby="titulo-painel-catalogo">
+            <h2 id="titulo-painel-catalogo">Catálogo de serviços</h2>
+            <h3>{{ servicoEditando() ? 'Editar serviço' : 'Novo serviço' }}</h3>
+            <form #formServico class="form-conta" (submit)="salvarServico(formServico, $event)">
+              <label>Nome do serviço
+                <input name="nome" [value]="servicoEditando()?.nome ?? ''" maxlength="100" required>
+              </label>
+              <label>Descrição
+                <textarea name="descricao" [value]="servicoEditando()?.descricao ?? ''" rows="4" maxlength="1500" required></textarea>
+              </label>
+              <label>Mostrar no catálogo
+                <input type="checkbox" name="ativo" checked [checked]="servicoEditando()?.ativo ?? true">
+              </label>
+              <div class="acoes">
+                <button class="botao" type="submit" [disabled]="catalogoOcupado()">Salvar serviço</button>
+                @if (servicoEditando()) {
+                  <button class="botao botao-secundario" type="button" [disabled]="catalogoOcupado()"
+                    (click)="cancelarEdicaoServico(formServico)">Cancelar edição</button>
+                }
+              </div>
+            </form>
+            @if (mensagemCatalogo()) {
+              <p role="status">{{ mensagemCatalogo() }}</p>
+            }
+            @if (catalogoOcupado()) {
+              <p role="status">Atualizando catálogo…</p>
+            } @else {
+              <div class="grade">
+                @for (servico of servicosAdmin(); track servico.id) {
+                  <article class="card card-texto">
+                    <h3>{{ servico.nome }}</h3>
+                    <p>{{ servico.descricao }}</p>
+                    <p>{{ servico.ativo ? 'Visível no catálogo' : 'Oculto no catálogo' }}</p>
+                    <button class="botao botao-secundario" type="button"
+                      (click)="servicoEditando.set(servico); formServico.scrollIntoView({block: 'center'})">Editar serviço</button>
+                  </article>
+                } @empty {
+                  @if (!mensagemCatalogo()) {
+                    <p>Nenhum serviço cadastrado.</p>
+                  }
+                }
+              </div>
+            }
+          </section>
+          <section class="catalogo trabalhos" id="painel-agenda" aria-labelledby="titulo-painel-agenda">
+            <h2 id="titulo-painel-agenda">Agenda</h2>
             <h2>{{ editando() ? 'Editar disponibilidade' : 'Nova disponibilidade' }}</h2>
-            <form class="form-conta" (submit)="salvarItem($event, tipo.value, inicio.value, fim.value, hora.value)">
+            <form #formAgenda class="form-conta" (submit)="salvarItem($event, tipo.value, inicio.value, fim.value, hora.value)">
               <label>Tipo
-                <select #tipo [value]="editando()?.tipo ?? 'servicos'">
+                <select #tipo name="tipo" [value]="editando()?.tipo ?? 'servicos'">
                   <option value="servicos">Atendimento</option>
                   <option value="cursos">Turma</option>
                 </select>
               </label>
-              <label>Data de início <input #inicio type="date" [value]="editando()?.inicio ?? ''" required></label>
-              <label>Hora do atendimento <input #hora type="time" [value]="editando()?.hora ?? ''"></label>
-              <label>Data de término da turma <input #fim type="date" [value]="editando()?.fim ?? ''"></label>
+              <label>Data de início <input #inicio name="inicio" type="date" [value]="editando()?.inicio ?? ''" required></label>
+              <label>Hora do atendimento <input #hora name="hora" type="time" [value]="editando()?.hora ?? ''"></label>
+              <label>Data de término da turma <input #fim name="fim" type="date" [value]="editando()?.fim ?? ''"></label>
               <p>Preencha a hora para atendimento ou a data de término para turma.</p>
               <div class="acoes">
                 <button class="botao" type="submit" [disabled]="ocupado()">Salvar</button>
                 @if (editando()) {
-                  <button class="botao botao-secundario" type="button" (click)="editando.set(null)">Cancelar edição</button>
+                  <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="cancelarEdicaoAgenda(formAgenda)">Cancelar edição</button>
                 }
               </div>
             </form>
@@ -90,12 +167,55 @@
                   <h3>{{ item.tipo === 'servicos' ? 'Atendimento' : 'Turma' }}</h3>
                   <p>{{ dataBr(item.inicio) }} {{ item.fim ? 'a ' + dataBr(item.fim) : 'às ' + item.hora }}</p>
                   <div class="acoes">
-                    <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="editando.set(item)">Editar</button>
+                    <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="editarDisponibilidade(item, formAgenda)">Editar disponibilidade</button>
                     <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="removerItem(item.id)">Remover</button>
                   </div>
                 </article>
               } @empty {
                 <p>Nenhuma disponibilidade publicada.</p>
+              }
+            </div>
+          </section>
+          <section class="catalogo trabalhos" id="painel-galeria" aria-labelledby="titulo-painel-galeria">
+            <h2 id="titulo-painel-galeria">Galeria</h2>
+            <h3>{{ fotoEditando() ? 'Editar foto' : 'Nova foto' }}</h3>
+            <form #formFoto class="form-conta" (submit)="enviarFoto($event, legendaFoto.value, arquivoFoto.files?.item(0) ?? undefined)">
+              <label>Legenda da foto
+                <input #legendaFoto maxlength="100" required>
+              </label>
+              <label>Foto (JPG, PNG ou WebP de até 3 MB)
+                <input #arquivoFoto type="file" accept="image/jpeg,image/png,image/webp" [required]="!fotoEditando()">
+              </label>
+              @if (fotoEditando()) {
+                <p>Para alterar apenas a legenda, deixe o campo de arquivo vazio.</p>
+              }
+              <div class="acoes">
+                <button class="botao" type="submit" [disabled]="galeriaOcupada()">
+                  {{ galeriaOcupada() ? 'Aguarde…' : fotoEditando() ? 'Salvar alterações' : 'Publicar foto' }}
+                </button>
+                @if (fotoEditando()) {
+                  <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada()"
+                    (click)="cancelarEdicaoFoto(formFoto)">Cancelar edição</button>
+                }
+              </div>
+            </form>
+            @if (mensagemGaleria()) {
+              <p role="status">{{ mensagemGaleria() }}</p>
+            }
+            <div class="grade">
+              @for (foto of fotosGaleria(); track foto.id) {
+                <article class="card">
+                  <img [src]="'/api/galeria/' + foto.id + '?v=' + versaoFotos()" [alt]="foto.legenda" loading="lazy">
+                  <div class="card-texto">
+                    <h3>{{ foto.legenda }}</h3>
+                    <div class="acoes">
+                      <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada()"
+                        (click)="editarFoto(foto, legendaFoto, arquivoFoto)">Editar foto</button>
+                      <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada() || !!fotoEditando()"
+                        (click)="removerFoto(foto.id)">Remover foto</button>
+                    </div>
+                  </div>
+                </article>
               }
             </div>
           </section>

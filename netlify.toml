@@ -1,0 +1,4 @@
+[build]
+  base = "aznom-web"
+  command = "npm run build && node preparar-netlify.mjs"
+  publish = "dist/aznom-web/browser"

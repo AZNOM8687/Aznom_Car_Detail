@@ -24,15 +24,28 @@ interface Servico {
   imagem_url: string | null;
 }
 
+interface FotoGaleria {
+  id: number;
+  legenda: string;
+}
+
+interface ServicoAdmin {
+  id: number;
+  nome: string;
+  descricao: string;
+  ativo: boolean;
+}
+
 @Component({
   selector: 'aznom-app',
   templateUrl: './app.html',
   styles: [`
     .form-conta { display: grid; gap: 1rem; max-width: 32rem; margin-block: 1rem; }
     .form-conta label { display: grid; gap: .4rem; }
-    .form-conta input, .form-conta select {
+    .form-conta input, .form-conta select, .form-conta textarea {
       width: 100%; padding: .65rem; font: inherit; border: 1px solid #61735c; border-radius: .35rem;
     }
+    .form-conta input[type="checkbox"] { width: auto; justify-self: start; }
     .agenda-tabela { margin-top: 1.5rem; overflow-x: auto; }
     .agenda-tabela table { width: 100%; border-collapse: collapse; background: #1b211c; }
     .agenda-tabela caption { margin-bottom: .75rem; text-align: left; font-weight: 700; }
@@ -58,8 +71,23 @@ class App implements OnInit {
   protected readonly carregandoConta = signal(true);
   protected readonly ocupado = signal(false);
   protected readonly mensagem = signal('');
+  protected readonly mensagemGoogle = new Map([
+    ['indisponivel', 'O acesso com Google ainda não foi configurado.'],
+    ['cancelado', 'Você cancelou o acesso com Google.'],
+    ['conta-existente', 'Já existe uma conta AZNOM com este e-mail. Entre com a senha do site.'],
+    ['falha', 'Não foi possível entrar com Google. Tente novamente.'],
+  ]).get(new URLSearchParams(window.location.search).get('google') ?? '');
   protected readonly itensAgenda = signal<ItemAgenda[]>([]);
   protected readonly editando = signal<ItemAgenda | null>(null);
+  protected readonly fotoEditando = signal<FotoGaleria | null>(null);
+  protected readonly versaoFotos = signal(0);
+  protected readonly fotosGaleria = signal<FotoGaleria[]>([]);
+  protected readonly galeriaOcupada = signal(false);
+  protected readonly mensagemGaleria = signal('');
+  protected readonly servicosAdmin = signal<ServicoAdmin[]>([]);
+  protected readonly servicoEditando = signal<ServicoAdmin | null>(null);
+  protected readonly catalogoOcupado = signal(false);
+  protected readonly mensagemCatalogo = signal('');
   private readonly cabecalhos = { 'X-Aznom': '1' };
 
   protected readonly abaAgenda = signal<'servicos' | 'cursos'>('servicos');
@@ -91,7 +119,11 @@ class App implements OnInit {
       next: conta => {
         this.ocupado.set(false);
         this.conta.set(conta);
-        if (this.telaAgenda || this.telaPainel) this.carregarAgenda();
+        if (this.telaAgenda || (this.telaPainel && conta.papel === 'admin')) this.carregarAgenda();
+        if (this.telaPainel && conta.papel === 'admin') {
+          this.carregarCatalogoAdmin();
+          this.carregarFotos();
+        }
       },
       error: erro => this.falha(erro),
     });
@@ -102,6 +134,7 @@ class App implements OnInit {
     this.http.post('/api/sair', {}, { headers: this.cabecalhos }).subscribe({
       next: () => {
         this.conta.set(null);
+        this.limparCatalogoAdmin();
         this.itensAgenda.set([]);
         this.editando.set(null);
         this.selecaoAgenda.set('');
@@ -110,6 +143,143 @@ class App implements OnInit {
       },
       error: erro => this.falha(erro),
     });
+  }
+
+  private limparCatalogoAdmin(): void {
+    this.servicosAdmin.set([]);
+    this.servicoEditando.set(null);
+    this.mensagemCatalogo.set('');
+    this.fotosGaleria.set([]);
+    this.fotoEditando.set(null);
+    this.mensagemGaleria.set('');
+  }
+
+  protected carregarFotos(): void {
+    this.galeriaOcupada.set(true);
+    this.http.get<FotoGaleria[]>('/api/galeria', { timeout: 8000 }).subscribe({
+      next: fotos => {
+        this.fotosGaleria.set(fotos);
+        this.galeriaOcupada.set(false);
+      },
+      error: () => {
+        this.galeriaOcupada.set(false);
+        this.mensagemGaleria.set('Não foi possível carregar as fotos adicionadas pelo painel.');
+      },
+    });
+  }
+
+  protected editarFoto(foto: FotoGaleria, legenda: HTMLInputElement, arquivo: HTMLInputElement): void {
+    this.fotoEditando.set(foto);
+    this.mensagemGaleria.set('');
+    legenda.value = foto.legenda;
+    arquivo.value = '';
+    legenda.focus();
+  }
+
+  protected cancelarEdicaoFoto(formulario: HTMLFormElement): void {
+    this.fotoEditando.set(null);
+    formulario.reset();
+  }
+
+  protected enviarFoto(evento: Event, legenda: string, foto?: File): void {
+    evento.preventDefault();
+    const id = this.fotoEditando()?.id;
+    if ((!foto && !id) || (foto && (!['image/jpeg', 'image/png', 'image/webp'].includes(foto.type) || foto.size > 3 * 1024 * 1024))) {
+      this.mensagemGaleria.set('Selecione uma imagem JPG, PNG ou WebP de até 3 MB.');
+      return;
+    }
+
+    const url = '/api/galeria';
+    const headers = this.cabecalhos;
+    const params = { legenda };
+    const pedido = id
+      ? (foto ? this.http.put(url + '/' + id, foto, { headers, params })
+              : this.http.patch(url + '/' + id, { legenda }, { headers }))
+      : this.http.post(url, foto, { headers, params });
+
+    this.galeriaOcupada.set(true);
+    this.mensagemGaleria.set('');
+    pedido.subscribe({
+      next: () => {
+        this.cancelarEdicaoFoto(evento.target as HTMLFormElement);
+        if (id && foto) this.versaoFotos.update(versao => versao + 1);
+        this.mensagemGaleria.set(id ? 'Foto atualizada.' : 'Foto publicada na galeria.');
+        this.carregarFotos();
+      },
+      error: erro => this.falhaGaleria(erro),
+    });
+  }
+
+  protected removerFoto(id: number): void {
+    if (!window.confirm('Remover esta foto da galeria?')) return;
+    this.galeriaOcupada.set(true);
+    this.mensagemGaleria.set('');
+    this.http.delete('/api/galeria/' + id, { headers: this.cabecalhos }).subscribe({
+      next: () => {
+        this.mensagemGaleria.set('Foto removida.');
+        this.carregarFotos();
+      },
+      error: erro => this.falhaGaleria(erro),
+    });
+  }
+
+  private falhaGaleria(erro: { status?: number; error?: { mensagem?: string } }): void {
+    this.galeriaOcupada.set(false);
+    if (erro.status === 401) {
+      this.falha(erro);
+      return;
+    }
+    this.mensagemGaleria.set(erro.error?.mensagem || 'Não foi possível atualizar a galeria.');
+  }
+
+  protected carregarCatalogoAdmin(): void {
+    this.catalogoOcupado.set(true);
+    this.http.get<ServicoAdmin[]>('/api/admin/servicos').subscribe({
+      next: servicos => {
+        this.servicosAdmin.set(servicos);
+        this.catalogoOcupado.set(false);
+      },
+      error: erro => this.falhaCatalogo(erro),
+    });
+  }
+
+  protected salvarServico(formulario: HTMLFormElement, evento: Event): void {
+    evento.preventDefault();
+    const campos = new FormData(formulario);
+    const dados = {
+      nome: campos.get('nome'),
+      descricao: campos.get('descricao'),
+      ativo: campos.has('ativo'),
+    };
+    const id = this.servicoEditando()?.id;
+    const url = '/api/admin/servicos';
+    const opcoes = { headers: this.cabecalhos };
+    const pedido = id ? this.http.put(url + '/' + id, dados, opcoes) : this.http.post(url, dados, opcoes);
+
+    this.catalogoOcupado.set(true);
+    this.mensagemCatalogo.set('');
+    pedido.subscribe({
+      next: () => {
+        this.cancelarEdicaoServico(formulario);
+        this.mensagemCatalogo.set('Serviço salvo.');
+        this.carregarCatalogoAdmin();
+      },
+      error: erro => this.falhaCatalogo(erro),
+    });
+  }
+
+  protected cancelarEdicaoServico(formulario: HTMLFormElement): void {
+    formulario.reset();
+    this.servicoEditando.set(null);
+  }
+
+  private falhaCatalogo(erro: { status?: number; error?: { mensagem?: string } }): void {
+    this.catalogoOcupado.set(false);
+    if (erro.status === 401) {
+      this.falha(erro);
+      return;
+    }
+    this.mensagemCatalogo.set(erro.error?.mensagem || 'Não foi possível carregar ou salvar o catálogo.');
   }
 
   protected carregarAgenda(): void {
@@ -121,6 +291,25 @@ class App implements OnInit {
       },
       error: erro => this.falha(erro),
     });
+  }
+
+  protected editarDisponibilidade(item: ItemAgenda, formulario: HTMLFormElement): void {
+    this.editando.set(item);
+    this.mensagem.set('');
+    const tipo = formulario.elements.namedItem('tipo') as HTMLSelectElement;
+    const inicio = formulario.elements.namedItem('inicio') as HTMLInputElement;
+    const hora = formulario.elements.namedItem('hora') as HTMLInputElement;
+    const fim = formulario.elements.namedItem('fim') as HTMLInputElement;
+    tipo.value = item.tipo;
+    inicio.value = item.inicio;
+    hora.value = item.hora ?? '';
+    fim.value = item.fim ?? '';
+    tipo.focus();
+  }
+
+  protected cancelarEdicaoAgenda(formulario: HTMLFormElement): void {
+    formulario.reset();
+    this.editando.set(null);
   }
 
   protected salvarItem(evento: Event, tipo: string, inicio: string, fim: string, hora: string): void {
@@ -162,6 +351,7 @@ class App implements OnInit {
     this.ocupado.set(false);
     if (erro.status === 401 && this.conta()) {
       this.conta.set(null);
+      this.limparCatalogoAdmin();
       this.itensAgenda.set([]);
       this.editando.set(null);
       this.selecaoAgenda.set('');
@@ -198,14 +388,20 @@ class App implements OnInit {
         next: conta => {
           this.conta.set(conta);
           this.carregandoConta.set(false);
-          if (this.telaAgenda || this.telaPainel) this.carregarAgenda();
+          if (this.telaAgenda || (this.telaPainel && conta.papel === 'admin')) this.carregarAgenda();
+          if (this.telaPainel && conta.papel === 'admin') {
+            this.carregarCatalogoAdmin();
+            this.carregarFotos();
+          }
         },
         error: erro => {
           this.carregandoConta.set(false);
           if (erro.status !== 401) this.falha(erro);
         },
       });
-    } else if (!this.telaGaleria) {
+    } else if (this.telaGaleria) {
+      this.carregarFotos();
+    } else {
       this.carregar();
     }
   }

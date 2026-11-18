@@ -1,48 +1,108 @@
 # AZNOM CAR DETAIL
 
-- `aznom-api/` — API Node.js que consulta o PostgreSQL.
-- `aznom-web/` — site Angular com página inicial e catálogo responsivo.
+Projeto Angular e Node.js com PostgreSQL. Inclui catálogo, galeria, curso, solicitação pelo WhatsApp, cadastro, login, agenda de serviços e turmas, e painel para administrar disponibilidades.
 
-## Como rodar no Windows
+## 1. Prepare o PostgreSQL
 
-Use Node.js 22.12 ou superior na linha 22, ou Node.js 24. Extraia o ZIP e abra a pasta principal `aznom-car-detail` no VS Code. O PostgreSQL precisa estar rodando com o banco `aznom_db` e a tabela `public.servicos` já criada no pgAdmin.
+No pgAdmin, conecte-se ao PostgreSQL. Use o banco `aznom_db` ou crie-o em **Databases → Create → Database**.
 
-### Terminal 1 — API
+- **Banco novo:** no Query Tool do banco `aznom_db`, abra e execute `aznom-api/catalogo.sql`. Ele cria a tabela `servicos` e insere os dez cadastros iniciais.
+- **Banco já usado:** se a tabela `servicos` já existe, siga diretamente para o próximo passo.
+- Em ambos os casos, execute `aznom-api/agenda.sql` no mesmo banco. Esse script cria as tabelas de contas, sessões e disponibilidades.
 
-No PowerShell, a partir da pasta principal:
+## 2. Inicie a API no primeiro terminal
+
+Extraia o ZIP e abra a pasta `aznom-car-detail` no VS Code. Use Node.js 22.12 ou superior na linha 22, ou Node.js 24. Em um terminal PowerShell aberto na pasta principal, execute:
 
 ```powershell
 cd aznom-api
-Copy-Item .env.example .env
+if (-not (Test-Path '.env')) {
+    Copy-Item '.env.example' '.env'
+}
 ```
 
-Abra `aznom-api/.env` no VS Code, informe sua senha do PostgreSQL e ajuste a porta ou o usuário se necessário. Em seguida:
+Abra `aznom-api/.env` e preencha a senha do PostgreSQL. Ajuste também o nome do banco, a porta ou o usuário se sua instalação usar outros valores.
 
 ```powershell
 npm.cmd ci
-npm.cmd start
+if ($LASTEXITCODE -eq 0) {
+    npm.cmd start
+}
 ```
 
-Teste em http://127.0.0.1:3000/api/servicos. O endereço deve exibir os serviços ativos em JSON.
+Mantenha o terminal aberto. Confira se http://127.0.0.1:3000/api/servicos retorna o JSON do catálogo.
 
-### Terminal 2 — Site
+## 3. Inicie o Angular no segundo terminal
 
-Com o primeiro terminal aberto, crie outro pelo menu **Terminal → Novo Terminal**. A partir da pasta principal:
+Abra outro PowerShell na pasta principal do projeto e rode:
 
 ```powershell
 cd aznom-web
-npm.cmd ci
-npm.cmd start
+npm.cmd ci --include=dev
+if ($LASTEXITCODE -eq 0) {
+    npm.cmd start
+}
 ```
 
-Abra http://127.0.0.1:4200. O catálogo usa a API através do proxy de desenvolvimento do Angular.
+Abra http://127.0.0.1:4200/. Se o Angular já estiver rodando e você precisar reinstalar as dependências, pare o processo anterior com **Ctrl+C** antes do `npm.cmd ci`, para liberar o esbuild.
 
-Esta versão inclui página inicial e catálogo. Login, área do cliente, agendamentos e painel administrativo são etapas futuras.
+## 4. Configure seu acesso administrativo
 
-## Se o catálogo não carregar
+1. Abra http://127.0.0.1:4200/?tela=conta e clique em **Criar uma conta**. A senha deve ter pelo menos 10 caracteres.
+2. No Query Tool de `aznom_db`, execute a consulta abaixo com o mesmo e-mail do cadastro.
 
-Se o terminal do Angular mostrar `ECONNREFUSED 127.0.0.1:3000`, inicie a API com `npm.cmd start` em um terminal aberto na pasta `aznom-api`. Mantenha os dois terminais abertos. Quando http://127.0.0.1:3000/api/servicos exibir os serviços em JSON, clique em **Tentar novamente** no site.
+```sql
+UPDATE aznom_contas
+SET papel = 'admin'
+WHERE email = lower('SEU-EMAIL-AQUI')
+RETURNING email, papel;
+```
 
-## Galeria, curso e agendamento
+3. Atualize a página e abra **Painel administrativo**. Cadastre um horário de atendimento ou uma turma para que a agenda mostre as primeiras disponibilidades.
+4. Abra http://127.0.0.1:4200/?tela=agenda e verifique as abas de serviços e cursos. Para conferir a experiência do cliente, teste com uma segunda conta comum.
 
-A página abre o WhatsApp com mensagens diferentes para serviços e para o curso de uma semana. As datas e horários são combinados na conversa. O catálogo usa o PostgreSQL quando a API responde e mostra uma lista inicial quando a API está indisponível. As imagens ilustrativas ficam identificadas na galeria.
+A agenda registra disponibilidades. Os clientes solicitam um horário ou uma vaga pelo WhatsApp e a AZNOM confirma a reserva na conversa.
+
+## Publicação
+
+Para oferecer cadastro, login e agenda no site público, a interface precisa de acesso à API Node.js e ao PostgreSQL. Neste projeto, a API também pode servir o Angular compilado pelo mesmo endereço HTTPS.
+
+1. No ambiente de hospedagem, mantenha `aznom-web` e `aznom-api` como pastas irmãs. Em `aznom-web`, rode `npm ci --include=dev` e `npm run build`.
+2. Em `aznom-api`, rode `npm ci` e use `npm start` como comando de inicialização. O servidor disponibiliza o build de `aznom-web/dist/aznom-web/browser` no mesmo endereço de `/api`.
+3. Configure `HOST=0.0.0.0`, `NODE_ENV=production`, a porta fornecida pela plataforma e as variáveis de conexão do PostgreSQL no ambiente do servidor. Prepare o banco hospedado com os scripts SQL e configure o administrador nele.
+
+### Netlify com API hospedada
+
+1. Hospede a pasta `aznom-api` em um serviço Node.js com HTTPS. Use `npm ci` para instalar as dependências, `npm start` para iniciar e configure `HOST=0.0.0.0`, `NODE_ENV=production` e a conexão PostgreSQL. Em um banco novo, execute `catalogo.sql`, `agenda.sql` e `galeria.sql`. Em um banco existente, reaplique `agenda.sql` para adicionar o login com Google.
+2. Conecte o repositório ao site existente no Netlify. Configure `AZNOM_API_ORIGIN` no ambiente de build com a origem HTTPS do backend, sem o caminho `/api`. O `netlify.toml` na raiz compila o Angular e gera o proxy de `/api/*`. Verifique se o painel do Netlify usa essa configuração.
+3. Após publicar, abra `https://aznomcardetail.netlify.app/api/conta` sem sessão. A resposta esperada é JSON com status 401.
+
+### Acesso com Google
+
+1. No Google Cloud, configure a tela de consentimento e crie um cliente OAuth do tipo **Aplicativo da Web**.
+2. Cadastre `https://aznomcardetail.netlify.app/api/auth/google/callback` como URI de redirecionamento autorizada para produção. Para teste local, cadastre `http://localhost:4200/api/auth/google/callback` e abra o Angular pelo endereço `http://localhost:4200`.
+3. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_REDIRECT_URI` no ambiente da API. Use exatamente a URI cadastrada no Google. Se a tela de consentimento estiver em teste, adicione os e-mails autorizados como usuários de teste.
+4. Reinicie a API e teste **Entrar com Google**. Uma nova identidade cria uma conta de cliente e usa a mesma sessão da AZNOM. Se o e-mail já existir no cadastro com senha, entre com a senha do site. O fluxo do Google não vincula contas existentes automaticamente.
+
+## Gerencie o catálogo e a agenda
+
+No site local, entre com a conta de administrador e abra **Painel administrativo**.
+Em **Catálogo de serviços**, cadastre ou edite nome e descrição. Desmarque
+**Mostrar no catálogo** para ocultar um serviço. Na seção **Agenda**, cadastre,
+edite ou remova horários de atendimento e datas de turmas. As mudanças são
+gravadas no banco conectado à API. Esta atualização usa as tabelas existentes.
+
+## Adicione fotos pelo painel
+
+No Query Tool do banco `aznom_db`, execute `aznom-api/galeria.sql` uma vez.
+Reinicie a API e o Angular. Entre como administrador, abra **Painel administrativo**
+e acesse **Galeria**. Preencha a legenda, escolha uma foto JPG, PNG ou WebP de
+até 3 MB e clique em **Publicar foto**. Ela aparece junto das demais na galeria.
+Use **Remover foto** para retirar uma imagem enviada pelo painel. As imagens já
+incluídas no projeto continuam na grade. Para que o envio e as fotos do banco
+funcionem no Netlify, a API e o PostgreSQL precisam estar hospedados.
+
+Para atualizar uma foto enviada, clique em **Editar foto** no painel. Você pode
+mudar só a legenda ou selecionar um arquivo novo para substituir a imagem.
+Na seção **Agenda**, use **Editar disponibilidade** para mudar a data, o horário
+ou o período de uma turma.
