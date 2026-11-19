@@ -1,7 +1,15 @@
+<ng-template #controleTema>
+  <button type="button" class="controle-tema" (click)="alternarTema()"
+    [attr.aria-label]="tema() === 'escuro' ? 'Ativar tema claro' : 'Ativar tema escuro'">
+    <span aria-hidden="true">{{ tema() === 'escuro' ? '☀' : '☾' }}</span>
+    <span>{{ tema() === 'escuro' ? 'Claro' : 'Escuro' }}</span>
+  </button>
+</ng-template>
+
 @if (telaGaleria) {
-  <header class="barra">
+  <header class="barra barra-interna">
     <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
-    <a href="./">← Voltar ao início</a>
+    <div class="barra-acoes"><ng-container *ngTemplateOutlet="controleTema"></ng-container><a href="./">Voltar ao início</a></div>
   </header>
   <main>
     <section class="catalogo trabalhos" id="galeria" aria-labelledby="titulo-galeria">
@@ -81,9 +89,9 @@
     }
   </main>
 } @else if (telaAgenda || telaConta || telaPainel) {
-  <header class="barra">
+  <header class="barra barra-interna">
     <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
-    <a href="./">← Voltar ao início</a>
+    <div class="barra-acoes"><ng-container *ngTemplateOutlet="controleTema"></ng-container><a href="./">Voltar ao início</a></div>
   </header>
   <main>
     @if (telaAgenda) {
@@ -256,7 +264,7 @@
           @if (conta()?.papel === 'admin') {
             <a href="./?tela=painel">Painel administrativo</a>
           }
-          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || galeriaOcupada() || atendimentosOcupados() || depoimentosOcupados()" (click)="sair()">Sair</button>
+          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || fotoServicoOcupada() || galeriaOcupada() || atendimentosOcupados() || depoimentosOcupados()" (click)="sair()">Sair</button>
         </div>
       </section>
       @if (telaPainel) {
@@ -297,13 +305,35 @@
                 <input type="checkbox" name="ativo" checked [checked]="servicoEditando()?.ativo ?? true">
               </label>
               <div class="acoes">
-                <button class="botao" type="submit" [disabled]="catalogoOcupado()">Salvar serviço</button>
+                <button class="botao" type="submit" [disabled]="catalogoOcupado() || fotoServicoOcupada()">Salvar serviço</button>
                 @if (servicoEditando()) {
-                  <button class="botao botao-secundario" type="button" [disabled]="catalogoOcupado()"
+                  <button class="botao botao-secundario" type="button" [disabled]="catalogoOcupado() || fotoServicoOcupada()"
                     (click)="cancelarEdicaoServico(formServico)">Cancelar edição</button>
                 }
               </div>
             </form>
+            @if (servicoEditando(); as servico) {
+              <section class="editor-foto-servico" aria-labelledby="titulo-foto-servico">
+                <h3 id="titulo-foto-servico">Foto no carrossel</h3>
+                <img [src]="previaServico() ?? imagemServicoAdmin(servico)"
+                  (error)="usarImagemPadrao($event, servico.nome)" [alt]="'Prévia da foto de ' + servico.nome">
+                <label>Selecionar foto JPG, PNG ou WebP (até 3 MB)
+                  <input #arquivoServico id="arquivo-foto-servico" type="file" accept="image/jpeg,image/png,image/webp"
+                    [disabled]="fotoServicoOcupada() || catalogoOcupado()" (change)="selecionarFotoServico(arquivoServico)">
+                </label>
+                <div class="acoes">
+                  <button type="button" class="botao" [disabled]="!fotoServico() || fotoServicoOcupada() || catalogoOcupado()"
+                    (click)="atualizarFotoServico(false, arquivoServico)">Salvar foto</button>
+                  @if (servico.imagem_url) {
+                    <button type="button" class="botao botao-secundario" [disabled]="fotoServicoOcupada() || catalogoOcupado()"
+                      (click)="atualizarFotoServico(true, arquivoServico)">Usar imagem padrão</button>
+                  }
+                </div>
+                @if (mensagemFotoServico()) {
+                  <p role="status">{{ mensagemFotoServico() }}</p>
+                }
+              </section>
+            }
             @if (mensagemCatalogo()) {
               <p role="status">{{ mensagemCatalogo() }}</p>
             }
@@ -313,6 +343,8 @@
               <div class="grade">
                 @for (servico of servicosAdmin(); track servico.id) {
                   <article class="card card-texto">
+                    <img class="miniatura-servico" [src]="imagemServicoAdmin(servico)" alt="" loading="lazy"
+                      (error)="usarImagemPadrao($event, servico.nome)">
                     <h3>{{ servico.nome }}</h3>
                     <p>{{ servico.descricao }}</p>
               @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
@@ -323,7 +355,7 @@
               }
                     <p>{{ servico.ativo ? 'Visível no catálogo' : 'Oculto no catálogo' }}</p>
                     <button class="botao botao-secundario" type="button"
-                      (click)="servicoEditando.set(servico); formServico.scrollIntoView({block: 'center'})">Editar serviço</button>
+                      [disabled]="fotoServicoOcupada()" (click)="editarServico(servico, formServico)">Editar serviço</button>
                   </article>
                 } @empty {
                   @if (!mensagemCatalogo()) {
@@ -686,51 +718,52 @@
     }
   </main>
 } @else {
-  <header class="barra">
+  <header class="barra barra-inicial" id="inicio">
     <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
-    <nav aria-label="Navegação principal">
-      <a href="#servicos">Serviços</a>
+    <nav id="menu-principal" aria-label="Navegação principal" [class.menu-aberto]="menuAberto()">
+      <a href="#servicos" (click)="menuAberto.set(false)">Serviços</a>
       <a href="./?tela=galeria">Galeria</a>
       <a href="./?tela=agenda">Agenda</a>
       <a href="./?tela=curso">Curso</a>
-      <a href="#contato">Contato</a>
-      <a href="./?tela=conta">Entrar</a>
+      <a href="#contato" (click)="menuAberto.set(false)">Contato</a>
     </nav>
+    <div class="barra-acoes">
+      <ng-container *ngTemplateOutlet="controleTema"></ng-container>
+      <a class="barra-conta" href="./?tela=conta">Entrar</a>
+      <button class="controle-menu" type="button" aria-controls="menu-principal" [attr.aria-expanded]="menuAberto()"
+        (click)="menuAberto.set(!menuAberto())">{{ menuAberto() ? 'Fechar' : 'Menu' }}</button>
+    </div>
   </header>
-  <main>
-    <section class="abertura" aria-labelledby="titulo">
-      <img class="logo-principal" src="imagens/monza-logo.webp" width="1774" height="887" alt="Logo da AZNOM CAR DETAIL, ilustração de um Monza branco">
-      <div>
-        <p class="categoria">AZNOM CAR DETAIL</p>
-        <h1 id="titulo">Estética automotiva</h1>
-        <p>Lavagem detalhada, correção de pintura e proteção para o seu carro.</p>
+
+  <main class="inicio">
+    <section class="abertura abertura-editorial" aria-labelledby="titulo">
+      <img class="logo-principal abertura-monza" src="imagens/monza-logo.webp"
+        width="1774" height="887" fetchpriority="high" alt="Logo da AZNOM CAR DETAIL com a ilustração do Monza branco">
+      <div class="abertura-conteudo">
+        <h1 id="titulo">Estética <em>automotiva</em></h1>
+        <p>Da lavagem detalhada à correção e proteção da pintura. Conheça os serviços da AZNOM para o seu veículo.</p>
         <div class="acoes">
-          <a class="botao" href="#agendamento">Agendar serviço</a>
-          <a class="botao botao-secundario" href="./?tela=curso">Conhecer o curso</a>
+          <a class="botao" [href]="linkOrcamento()">Pedir orçamento</a>
+          <a class="botao botao-secundario" href="#servicos">Explorar serviços</a>
         </div>
       </div>
     </section>
 
-    <section class="catalogo trabalhos" aria-labelledby="titulo-comparacao">
-      <h2 id="titulo-comparacao">Restauração de faróis</h2>
-      <div class="comparacao comparacao-inicial">
-        <figure>
-          <img src="imagens/farol-antes.webp" width="771" height="523" loading="lazy" alt="Farol opaco do carro vermelho">
-          <figcaption>Antes</figcaption>
-        </figure>
-        <figure>
-          <img src="imagens/farol-depois.webp" width="895" height="452" loading="lazy" alt="Farol do mesmo carro após a restauração">
-          <figcaption>Depois</figcaption>
-        </figure>
+    <section class="catalogo catalogo-editorial" id="servicos" aria-labelledby="titulo-servicos">
+      <div class="cabecalho-secao">
+        <div>
+          <h2 id="titulo-servicos">Nossos serviços</h2>
+          <p>Escolha um serviço para solicitar um orçamento.</p>
+        </div>
+        @if (servicosFiltrados().length > 1) {
+          <div class="carrossel-controles">
+            <button class="controle-seta" type="button" aria-label="Serviços anteriores" aria-controls="carrossel-servicos"
+              [disabled]="!carrosselAnterior()" (click)="moverCatalogo(-1)">‹</button>
+            <button class="controle-seta" type="button" aria-label="Próximos serviços" aria-controls="carrossel-servicos"
+              [disabled]="!carrosselProximo()" (click)="moverCatalogo(1)">›</button>
+          </div>
+        }
       </div>
-      <div class="acoes">
-        <a class="botao" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento de restauração</a>
-        <a class="botao botao-secundario" href="./?tela=galeria">Ver galeria</a>
-      </div>
-    </section>
-
-    <section class="catalogo" id="servicos" aria-labelledby="titulo-servicos">
-      <h2 id="titulo-servicos">Nossos serviços</h2>
       @if (estado() === 'carregando') {
         <p role="status">Carregando serviços…</p>
       } @else {
@@ -740,44 +773,87 @@
             <button class="botao botao-secundario" type="button" (click)="carregar()">Atualizar catálogo</button>
           </div>
         }
-        <div class="grade">
-          @for (servico of servicos(); track servico.id) {
-            <article class="card card-texto">
-              <h3>{{ servico.nome }}</h3>
-              <p>{{ servico.descricao }}</p>
-              @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
-                <figure>
-                  <blockquote>{{ item.texto }}</blockquote>
-                  <figcaption>{{ item.autor }}</figcaption>
-                </figure>
+        @if (servicos().length) {
+          <div class="busca-servicos">
+            <label for="busca-servico">Buscar serviço</label>
+            <div class="busca-servicos-campo">
+              <input #buscaServico id="busca-servico" type="search" placeholder="Ex. polimento"
+                [value]="buscaCatalogo()" (input)="buscarServicos(buscaServico.value)">
+              @if (buscaCatalogo()) {
+                <button type="button" class="controle-tema" (click)="buscarServicos(''); buscaServico.focus()">Limpar</button>
               }
-              <a class="link-servico" [href]="linkOrcamento(servico.nome)" [attr.aria-label]="'Pedir orçamento de ' + servico.nome">Pedir orçamento ↗</a>
-            </article>
-          } @empty {
-            <p>Nenhum serviço disponível no momento.</p>
-          }
-        </div>
+            </div>
+          </div>
+        }
+        @if (servicosFiltrados().length) {
+          <div class="carrossel" id="carrossel-servicos" aria-label="Carrossel de serviços"
+            role="region" tabindex="0" (scroll)="atualizarCatalogo()" (keydown)="teclaCatalogo($event)">
+            @for (servico of servicosFiltrados(); track servico.id) {
+              <article class="card servico-editorial">
+                @if (imagemServico(servico); as imagem) {
+                  <img [src]="imagem" alt="" width="640" height="400" loading="lazy"
+                    (error)="usarImagemPadrao($event, servico.nome)">
+                }
+                <div class="servico-conteudo">
+                  <h3>{{ servico.nome }}</h3>
+                  <p>{{ servico.descricao }}</p>
+                  @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
+                    <figure class="servico-depoimento">
+                      <blockquote>{{ item.texto }}</blockquote>
+                      <figcaption>{{ item.autor }}</figcaption>
+                    </figure>
+                  }
+                  <a class="link-servico" [href]="linkOrcamento(servico.nome)" [attr.aria-label]="'Pedir orçamento de ' + servico.nome">Pedir orçamento</a>
+                </div>
+              </article>
+            }
+          </div>
+          <div class="carrossel-trilho" aria-hidden="true"><span [style.width.%]="progressoCatalogo()"></span></div>
+        } @else {
+          <p role="status">{{ buscaCatalogo() ? 'Nenhum serviço encontrado para essa busca.' : 'Nenhum serviço disponível no momento.' }}</p>
+        }
       }
     </section>
 
-
-
-    <section class="catalogo curso" id="curso" aria-labelledby="titulo-curso-inicial">
-      <h2 id="titulo-curso-inicial">Curso de estética automotiva</h2>
-      <p>Uma semana para conhecer as etapas dos principais serviços, da lavagem à proteção da pintura.</p>
-      <a class="botao" href="./?tela=curso">Ver conteúdo e próximas turmas</a>
+    <section class="catalogo resultado" aria-labelledby="titulo-comparacao">
+      <div class="resultado-texto">
+        <h2 id="titulo-comparacao">Antes e depois</h2>
+        <p>Compare o farol opaco com o resultado da restauração no mesmo veículo.</p>
+        <a class="botao botao-secundario" href="./?tela=galeria">Ver galeria completa</a>
+      </div>
+      <figure class="resultado-foto">
+        <img src="imagens/farol-depois.webp" width="895" height="452" loading="lazy" alt="Farol restaurado do carro vermelho">
+        <img class="resultado-antes" src="imagens/farol-antes.webp" width="771" height="523" loading="lazy"
+          alt="Farol opaco do mesmo carro antes da restauração" [style.clip-path]="'inset(0 ' + (100 - comparacao()) + '% 0 0)'">
+        <span class="resultado-divisor" aria-hidden="true" [style.left.%]="comparacao()"></span>
+        <figcaption><span>Antes</span><span>Depois</span></figcaption>
+        <input #controleComparacao type="range" min="0" max="100"
+          aria-label="Comparar antes e depois da restauração"
+          [attr.aria-valuetext]="comparacao() + '% da imagem de antes'"
+          [value]="comparacao()" (input)="comparacao.set(controleComparacao.valueAsNumber)">
+      </figure>
     </section>
 
-    <section class="catalogo trabalhos" id="agendamento" aria-labelledby="titulo-agendamento">
-      <h2 id="titulo-agendamento">Agende seu serviço</h2>
-      <p>Informe o modelo do veículo, o serviço desejado e o melhor dia para você. A AZNOM confirma a disponibilidade pelo WhatsApp.</p>
-      <a class="botao" [href]="linkOrcamento()">Pedir orçamento e consultar horários</a>
+    <section class="catalogo proximos-passos" id="agendamento" aria-labelledby="titulo-agendamento">
+      <div class="catalogo-chamada">
+        <h2 id="titulo-agendamento">Agende seu serviço</h2>
+        <p>Confira os horários disponíveis ou solicite um orçamento para seu veículo.</p>
+        <div class="acoes">
+          <a class="botao" href="./?tela=agenda">Ver agenda</a>
+          <a class="botao botao-secundario" [href]="linkOrcamento()">Pedir orçamento</a>
+        </div>
+      </div>
+      <div class="catalogo-chamada" id="curso">
+        <h2>Curso de estética automotiva</h2>
+        <p>Uma semana para conhecer as etapas dos principais serviços, da lavagem à proteção da pintura.</p>
+        <a class="botao botao-secundario" href="./?tela=curso">Ver próximas turmas</a>
+      </div>
     </section>
   </main>
 }
 
 <footer id="contato">
-  <strong>AZNOM CAR DETAIL</strong>
+  <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
   <div class="acoes">
     <a [href]="contato">WhatsApp · (45) 99927-1987</a>
     <a href="mailto:marllongustavodasilva@gmail.com">marllongustavodasilva@gmail.com</a>

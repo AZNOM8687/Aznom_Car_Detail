@@ -1,3 +1,4 @@
+const { colunaFoto, registrarFotosServicos } = require('./fotos-servicos');
 const registrarGestao = require('./gestao');
 const registrarRecebimentos = require('./recebimentos');
 const { registrarOperacao, telefoneValido } = require('./operacao');
@@ -331,7 +332,7 @@ module.exports = function registrarAgenda(app, banco) {
 
   app.get('/api/admin/servicos', autenticar, admin, rota(async (req, res) => {
     const { rows } = await banco.query(
-      'SELECT id, nome, descricao, ativo FROM public.servicos ORDER BY nome',
+      `SELECT id, nome, descricao, ativo, ${colunaFoto(true)} FROM public.servicos ORDER BY nome`,
     );
     res.json(rows);
   }));
@@ -355,6 +356,8 @@ module.exports = function registrarAgenda(app, banco) {
   });
   app.post('/api/admin/servicos', autenticar, admin, salvarServico);
   app.put('/api/admin/servicos/:id(\\d+)', autenticar, admin, salvarServico);
+
+  registrarFotosServicos(app, banco, { autenticar, admin, rota });
 
   registrarOperacao(app, banco, {
     autenticar, admin, rota, limitarEspera: (req, res, next) => limitar(req, res, next, 'espera'),

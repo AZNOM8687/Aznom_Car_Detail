@@ -2,7 +2,7 @@
 .form-conta label { display: grid; gap: .35rem; }
 .form-conta input, .form-conta select, .form-conta textarea {
   max-width: 100%; width: 100%; padding: .65rem; font: inherit;
-  border: 1px solid #61735c; border-radius: .35rem;
+  border: 1px solid var(--borda-forte); border-radius: .35rem;
 }
 .form-conta input[type="checkbox"] { width: auto; justify-self: start; }
 .foto-ficha { min-width: 0; }
@@ -11,4 +11,4 @@
 .movimentos { overflow-x: auto; margin-top: 1rem; }
 .movimentos table { width: 100%; border-collapse: collapse; text-align: left; }
 .movimentos caption { text-align: left; font-weight: 700; margin-bottom: .5rem; }
-.movimentos th, .movimentos td { padding: .5rem; border-bottom: 1px solid #39443a; }
+.movimentos th, .movimentos td { padding: .5rem; border-bottom: 1px solid var(--linha); }

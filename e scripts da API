@@ -1,0 +1,14 @@
+.gitignore
+README.md
+aznom-api/.env.example
+aznom-api/agenda.js
+aznom-api/agenda.sql
+aznom-api/catalogo.sql
+aznom-api/galeria.js
+aznom-api/galeria.sql
+aznom-api/google.js
+aznom-web/preparar-netlify.mjs
+aznom-web/src/app.html
+aznom-web/src/main.ts
+aznom-web/src/styles.css
+netlify.toml

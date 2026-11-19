@@ -1,6 +1,7 @@
 const path = require('node:path');
 const express = require('express');
 const { Pool } = require('pg');
+const { colunaFoto } = require('./fotos-servicos');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -12,7 +13,7 @@ app.use(express.json({ limit: '8kb' }));
 app.get('/api/servicos', async (req, res) => {
   try {
     const resultado = await banco.query(`
-      SELECT id, nome, descricao, imagem_url
+      SELECT id, nome, descricao, ${colunaFoto()}
       FROM public.servicos
       WHERE ativo = TRUE
       ORDER BY nome

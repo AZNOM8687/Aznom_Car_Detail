@@ -1,5 +1,6 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { HttpClient, provideHttpClient } from '@angular/common/http';
-import { afterNextRender, Component, computed, inject, Injector, OnInit, provideZonelessChangeDetection, signal } from '@angular/core';
+import { afterNextRender, Component, computed, DestroyRef, inject, Injector, OnInit, provideZonelessChangeDetection, signal } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 
 import { catalogoInicial, ilustracoes } from './catalogo';
@@ -73,6 +74,7 @@ interface ServicoAdmin {
   nome: string;
   descricao: string;
   ativo: boolean;
+  imagem_url?: string | null;
 }
 
 const fusoAgenda = 'America/Sao_Paulo';
@@ -89,13 +91,13 @@ function segundaDaSemana(data: string): string {
 
 @Component({
   selector: 'aznom-app',
-  imports: [FichaVeiculo, InteresseTurma, ListaEspera, Orcamentos, MatriculasPainel, ResumoPainel, VeiculosPainel, ResumoMensal],
+  imports: [NgTemplateOutlet, FichaVeiculo, InteresseTurma, ListaEspera, Orcamentos, MatriculasPainel, ResumoPainel, VeiculosPainel, ResumoMensal],
   templateUrl: './app.html',
   styles: [`
     .form-conta { display: grid; gap: 1rem; max-width: 32rem; margin-block: 1rem; }
     .form-conta label { display: grid; gap: .4rem; }
     .form-conta input, .form-conta select, .form-conta textarea {
-      width: 100%; padding: .65rem; font: inherit; border: 1px solid #61735c; border-radius: .35rem;
+      width: 100%; padding: .65rem; font: inherit; border: 1px solid var(--borda-forte); border-radius: .35rem;
     }
     .form-conta input[type="checkbox"] { width: auto; justify-self: start; }
     .filtros-semana { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
@@ -106,19 +108,110 @@ function segundaDaSemana(data: string): string {
     .detalhes-turma dd { margin: 0 0 .5rem; white-space: pre-line; overflow-wrap: anywhere; }
     blockquote { margin-inline: 0; overflow-wrap: anywhere; }
     .agenda-tabela { margin-top: 1.5rem; overflow-x: auto; }
-    .agenda-tabela table { width: 100%; border-collapse: collapse; background: #1b211c; }
+    .agenda-tabela table { width: 100%; border-collapse: collapse; background: var(--superficie); }
     .agenda-tabela caption { margin-bottom: .75rem; text-align: left; font-weight: 700; }
-    .agenda-tabela th, .agenda-tabela td { padding: .75rem; border-bottom: 1px solid #39443a; text-align: left; }
-    .agenda-tabela th { background: #253428; color: #c6f277; }
-    .agenda-tabela .linha-selecionada { background: #253428; }
-    .agenda-tabela input { accent-color: #c6f277; }
+    .agenda-tabela th, .agenda-tabela td { padding: .75rem; border-bottom: 1px solid var(--linha); text-align: left; }
+    .agenda-tabela th { background: var(--painel); color: var(--destaque); }
+    .agenda-tabela .linha-selecionada { background: var(--painel); }
+    .agenda-tabela input { accent-color: var(--destaque); }
   `],
 })
 class App implements OnInit {
   private readonly http = inject(HttpClient);
+  private readonly limpeza = inject(DestroyRef);
   private readonly injector = inject(Injector);
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly estado = signal<'carregando' | 'pronto' | 'reserva'>('carregando');
+
+  protected readonly tema = signal(document.documentElement.dataset['tema'] === 'claro' ? 'claro' : 'escuro');
+  protected readonly menuAberto = signal(false);
+  protected readonly comparacao = signal(50);
+  protected readonly carrosselAnterior = signal(false);
+  protected readonly carrosselProximo = signal(false);
+  protected readonly progressoCatalogo = signal(0);
+  protected readonly buscaCatalogo = signal('');
+  protected readonly servicosFiltrados = computed(() => {
+    const normalizar = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+    const busca = normalizar(this.buscaCatalogo().trim());
+    return this.servicos().filter(servico => normalizar(servico.nome + ' ' + servico.descricao).includes(busca));
+  });
+
+  constructor() {
+    this.limpeza.onDestroy(() => this.limparPreviaServico());
+    afterNextRender(() => {
+      // Observe the viewport and the track once Angular renders the catalog.
+      const observer = new ResizeObserver(() => this.atualizarCatalogo());
+      observer.observe(document.documentElement);
+      const observarCatalogo = () => {
+        const faixa = document.getElementById('carrossel-servicos');
+        if (faixa) observer.observe(faixa);
+        this.atualizarCatalogo();
+      };
+      const secao = document.getElementById('servicos');
+      if (secao) {
+        const conteudo = new MutationObserver(observarCatalogo);
+        conteudo.observe(secao, { childList: true, subtree: true });
+        observarCatalogo();
+        this.limpeza.onDestroy(() => conteudo.disconnect());
+      }
+      this.limpeza.onDestroy(() => observer.disconnect());
+    });
+  }
+
+  protected alternarTema(): void {
+    const tema = this.tema() === 'escuro' ? 'claro' : 'escuro';
+    this.tema.set(tema);
+    document.documentElement.dataset['tema'] = tema;
+    try { localStorage.setItem('aznom-tema', tema); } catch { /* A sessão continua com o tema escolhido. */ }
+  }
+
+  protected imagemServico(servico: { nome: string; imagem_url?: string | null }): string {
+    if (servico.imagem_url) return servico.imagem_url;
+    const nome = servico.nome.toLocaleLowerCase('pt-BR');
+    if (nome.includes('lavagem')) return 'imagens/lavagem.webp';
+    if (nome.includes('higieniza')) return 'imagens/higienizacao.webp';
+    if (nome.includes('farol') || nome.includes('faróis')) return 'imagens/farol-depois.webp';
+    if (nome.includes('vitrifica')) return 'imagens/vitrificacao.webp';
+    if (nome.includes('polimento')) return 'imagens/politriz.webp';
+    return 'imagens/monza-logo.webp';
+  }
+
+  protected buscarServicos(valor: string): void {
+    this.buscaCatalogo.set(valor);
+    document.getElementById('carrossel-servicos')?.scrollTo({ left: 0, behavior: 'instant' });
+  }
+
+  protected usarImagemPadrao(evento: Event, nome: string): void {
+    if (!(evento.target instanceof HTMLImageElement)) return;
+    const imagem = evento.target;
+    const padrao = this.imagemServico({ nome });
+    if (imagem.getAttribute('src') !== padrao) imagem.src = padrao;
+  }
+
+  protected atualizarCatalogo(): void {
+    const faixa = document.getElementById('carrossel-servicos');
+    if (!faixa) return;
+    const curso = Math.max(0, faixa.scrollWidth - faixa.clientWidth);
+    this.carrosselAnterior.set(faixa.scrollLeft > 2);
+    this.carrosselProximo.set(faixa.scrollLeft < curso - 2);
+    this.progressoCatalogo.set(faixa.scrollWidth
+      ? Math.min(100, (faixa.scrollLeft + faixa.clientWidth) / faixa.scrollWidth * 100)
+      : 100);
+  }
+
+  protected moverCatalogo(direcao: number): void {
+    const faixa = document.getElementById('carrossel-servicos');
+    if (!faixa) return;
+    const cards = faixa.querySelectorAll('article');
+    const passo = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : faixa.clientWidth;
+    faixa.scrollBy({ left: direcao * passo });
+  }
+
+  protected teclaCatalogo(evento: KeyboardEvent): void {
+    if (evento.target !== evento.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(evento.key)) return;
+    evento.preventDefault();
+    this.moverCatalogo(evento.key === 'ArrowLeft' ? -1 : 1);
+  }
 
   private readonly parametros = new URLSearchParams(window.location.search);
   private readonly tela = this.parametros.get('tela');
@@ -215,6 +308,11 @@ class App implements OnInit {
   protected readonly mensagemGaleria = signal('');
   protected readonly servicosAdmin = signal<ServicoAdmin[]>([]);
   protected readonly servicoEditando = signal<ServicoAdmin | null>(null);
+  protected readonly fotoServico = signal<File | null>(null);
+  protected readonly previaServico = signal<string | null>(null);
+  protected readonly mensagemFotoServico = signal('');
+  protected readonly fotoServicoOcupada = signal(false);
+  protected readonly versaoFotoServico = signal(0);
   protected readonly catalogoOcupado = signal(false);
   protected readonly mensagemCatalogo = signal('');
   private readonly cabecalhos = { 'X-Aznom': '1' };
@@ -296,6 +394,8 @@ class App implements OnInit {
     this.horarioAtendimento.set(null);
     this.mensagemAtendimento.set('');
     this.servicosAdmin.set([]);
+    this.limparPreviaServico();
+    this.mensagemFotoServico.set('');
     this.servicoEditando.set(null);
     this.mensagemCatalogo.set('');
     this.fotosGaleria.set([]);
@@ -417,8 +517,75 @@ class App implements OnInit {
     });
   }
 
+  protected editarServico(servico: ServicoAdmin, formulario: HTMLFormElement): void {
+    this.limparPreviaServico();
+    this.mensagemFotoServico.set('');
+    this.servicoEditando.set(servico);
+    const arquivo = document.querySelector<HTMLInputElement>('#arquivo-foto-servico');
+    if (arquivo) arquivo.value = '';
+    formulario.scrollIntoView({ block: 'center' });
+  }
+
+  protected selecionarFotoServico(input: HTMLInputElement): void {
+    const arquivo = input.files?.[0];
+    this.limparPreviaServico();
+    this.mensagemFotoServico.set('');
+    if (!arquivo) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type) || arquivo.size > 3 * 1024 * 1024) {
+      input.value = '';
+      this.mensagemFotoServico.set('Escolha uma imagem JPG, PNG ou WebP de até 3 MB.');
+      return;
+    }
+    this.fotoServico.set(arquivo);
+    this.previaServico.set(URL.createObjectURL(arquivo));
+  }
+
+  private limparPreviaServico(): void {
+    const url = this.previaServico();
+    if (url) URL.revokeObjectURL(url);
+    this.previaServico.set(null);
+    this.fotoServico.set(null);
+  }
+
+  protected atualizarFotoServico(remover: boolean, campo: HTMLInputElement): void {
+    const servico = this.servicoEditando();
+    const arquivo = this.fotoServico();
+    if (!servico || this.fotoServicoOcupada() || (!remover && !arquivo)) return;
+    if (remover && !window.confirm('Remover a foto personalizada deste serviço?')) return;
+
+    const url = '/api/admin/servicos/' + servico.id + '/foto';
+    const headers = this.cabecalhos;
+    const pedido = remover ? this.http.delete(url, { headers }) : this.http.put(url, arquivo, { headers });
+    this.fotoServicoOcupada.set(true);
+    this.mensagemFotoServico.set('');
+    pedido.subscribe({
+      next: () => {
+        this.fotoServicoOcupada.set(false);
+        const imagem_url = remover ? null : url;
+        this.versaoFotoServico.update(versao => versao + 1);
+        this.servicoEditando.set({ ...servico, imagem_url });
+        this.servicosAdmin.update(lista => lista.map(item => item.id === servico.id ? { ...item, imagem_url } : item));
+        this.limparPreviaServico();
+        campo.value = '';
+        this.mensagemFotoServico.set(remover ? 'Foto padrão restaurada.' : 'Foto do carrossel atualizada.');
+      },
+      error: erro => {
+        this.fotoServicoOcupada.set(false);
+        this.mensagemFotoServico.set(erro.error?.mensagem || 'Não foi possível atualizar a foto.');
+        if (erro.status === 401) this.falha(erro);
+      },
+    });
+  }
+
+  protected imagemServicoAdmin(servico: ServicoAdmin): string {
+    const url = this.imagemServico(servico);
+    return url.startsWith('/api/admin/servicos/') ? url + '?v=' + this.versaoFotoServico() : url;
+  }
+
   protected cancelarEdicaoServico(formulario: HTMLFormElement): void {
     formulario.reset();
+    this.limparPreviaServico();
+    this.mensagemFotoServico.set('');
     this.servicoEditando.set(null);
   }
 

@@ -15,6 +15,12 @@
     <meta property="og:image:alt" content="Logo da AZNOM CAR DETAIL com ilustração de um Monza branco">
     <meta name="twitter:card" content="summary_large_image">
     <base href="/">
+    <script>
+      try {
+        const tema = localStorage.getItem('aznom-tema');
+        if (tema === 'claro' || tema === 'escuro') document.documentElement.dataset.tema = tema;
+      } catch {}
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
   </head>
   <body>
