@@ -8,16 +8,18 @@
       <h1 id="titulo-galeria">Galeria de serviços</h1>
       <div class="comparacao galeria-extra">
         <figure>
-          <a href="imagens/farol-antes.png">
-            <img src="imagens/farol-antes.png" loading="lazy" alt="Farol opaco do carro vermelho">
+          <a id="portfolio-farol-real" href="imagens/farol-antes.webp">
+            <img src="imagens/farol-antes.webp" width="771" height="523" loading="lazy" alt="Farol opaco do carro vermelho">
           </a>
           <figcaption>Restauração de faróis · carro vermelho · antes</figcaption>
         </figure>
         <figure>
-          <a href="imagens/farol-depois.png">
-            <img src="imagens/farol-depois.png" loading="lazy" alt="Farol do carro vermelho após a restauração">
+          <a href="imagens/farol-depois.webp">
+            <img src="imagens/farol-depois.webp" width="895" height="452" loading="lazy" alt="Farol do carro vermelho após a restauração">
           </a>
-          <figcaption>Restauração de faróis · carro vermelho · depois</figcaption>
+          <figcaption>Restauração de faróis · carro vermelho · depois
+            <a class="link-servico" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento de restauração de faróis</a>
+          </figcaption>
         </figure>
         <figure>
           <a href="imagens/farol-prata-antes.webp">
@@ -29,7 +31,9 @@
           <a href="imagens/farol-prata-depois.webp">
             <img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração">
           </a>
-          <figcaption>Restauração de faróis · carro prata · depois</figcaption>
+          <figcaption>Restauração de faróis · carro prata · depois
+            <a class="link-servico" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento de restauração de faróis</a>
+          </figcaption>
         </figure>
         @for (foto of fotosGaleria(); track foto.id) {
           <figure>
@@ -40,15 +44,41 @@
           </figure>
         }
         @for (foto of ilustracoes; track foto.arquivo) {
-          <figure>
+          <figure [id]="'portfolio-' + foto.arquivo">
             <a [href]="'imagens/' + foto.arquivo + '.webp'">
               <img [src]="'imagens/' + foto.arquivo + '.webp'" [alt]="foto.titulo" loading="lazy">
             </a>
-            <figcaption>{{ foto.titulo }}</figcaption>
+            <figcaption>{{ foto.titulo }}
+              @if (foto.servico) {
+                <a class="link-servico" [href]="linkOrcamento(foto.servico)">Pedir orçamento de {{ foto.servico }}</a>
+              }
+            </figcaption>
           </figure>
         }
       </div>
     </section>
+    @if (depoimentos().length) {
+      <section class="catalogo trabalhos" aria-labelledby="titulo-depoimentos">
+        <h2 id="titulo-depoimentos">Depoimentos de clientes</h2>
+        <div class="grade">
+          @for (item of depoimentos(); track item.id) {
+            <article class="card card-texto">
+              <h3>{{ item.servico }}</h3>
+              <figure>
+                <blockquote>{{ item.texto }}</blockquote>
+                <figcaption>{{ item.autor }}</figcaption>
+              </figure>
+              <div class="acoes">
+                @if (fotoDoServico(item.servico); as foto) {
+                  <a class="link-servico" [href]="'#portfolio-' + foto">Ver o serviço no portfólio</a>
+                }
+                <a class="link-servico" [href]="linkOrcamento(item.servico)">Pedir orçamento</a>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
   </main>
 } @else if (telaAgenda || telaConta || telaPainel) {
   <header class="barra">
@@ -56,7 +86,151 @@
     <a href="./">← Voltar ao início</a>
   </header>
   <main>
-    @if (carregandoConta()) {
+    @if (telaAgenda) {
+      @if (telaCurso) {
+        <section class="catalogo curso" aria-labelledby="titulo-curso">
+          <h1 id="titulo-curso">Curso de estética automotiva</h1>
+          <p>Em uma semana, Marllon apresenta os principais serviços da estética automotiva e explica a finalidade e as etapas de cada técnica.</p>
+          <ul>
+            <li>Lavagem técnica e descontaminação da pintura</li>
+            <li>Higienização interna</li>
+            <li>Polimento e vitrificação de pintura</li>
+            <li>Restauração de faróis</li>
+          </ul>
+          <p><a [href]="curso">Consultar valor e o que está incluso pelo WhatsApp</a></p>
+        </section>
+      }
+      @if (ocupado()) {
+        <p class="catalogo" role="status">Carregando agenda…</p>
+      } @else if (mensagem()) {
+        <section class="catalogo" aria-label="Agenda indisponível">
+          <button class="botao botao-secundario" type="button" (click)="carregarAgenda()">Tentar novamente</button>
+          <p><a [href]="telaCurso ? curso : contato">Consultar disponibilidade pelo WhatsApp</a></p>
+        </section>
+      } @else {
+        <section class="catalogo" aria-labelledby="titulo-agenda">
+          @if (telaCurso) {
+            <h2 id="titulo-agenda">Próximas turmas</h2>
+          } @else {
+            <h1 id="titulo-agenda">Agenda da AZNOM</h1>
+            <p>Escolha um horário de preferência ou consulte as turmas. A confirmação é feita pelo WhatsApp.</p>
+            <div class="acoes" role="group" aria-label="Tipo de agenda">
+              <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'servicos'"
+                [attr.aria-pressed]="abaAgenda() === 'servicos'" (click)="trocarAbaAgenda('servicos')">Serviços</button>
+              <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'cursos'"
+                [attr.aria-pressed]="abaAgenda() === 'cursos'" (click)="trocarAbaAgenda('cursos')">Cursos</button>
+            </div>
+          }
+
+          <div class="agenda-tabela">
+            <table>
+              <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso de uma semana' }}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{{ abaAgenda() === 'servicos' ? 'Data' : 'Início' }}</th>
+                  <th scope="col">{{ abaAgenda() === 'servicos' ? 'Horário' : 'Término' }}</th>
+                  @if (abaAgenda() === 'cursos') {
+                    <th scope="col">Vagas</th>
+                  }
+                  @if (abaAgenda() === 'cursos') {
+                    <th scope="col">Detalhes</th>
+                  }
+                  <th scope="col">{{ abaAgenda() === 'servicos' ? 'Horário de preferência (opcional)' : 'Escolher' }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (opcao of opcoesAgenda(); track opcao.id) {
+                  <tr [class.linha-selecionada]="selecaoAgenda() === opcao.rotulo">
+                    <td>{{ opcao.primeiraColuna }}</td>
+                    <td>{{ opcao.segundaColuna }}</td>
+                    @if (abaAgenda() === 'cursos') {
+                      <td>{{ opcao.vagas > 0 ? opcao.vagas : 'Lotada' }}</td>
+                      <td>
+                        @if (opcao.detalhes.valor !== undefined || opcao.detalhes.local || opcao.detalhes.requisitos || opcao.detalhes.inclusos) {
+                          <details>
+                            <summary>Ver detalhes</summary>
+                            <dl class="detalhes-turma">
+                              @if (opcao.detalhes.valor !== undefined) {
+                                <dt>Valor</dt><dd>{{ reais.format(opcao.detalhes.valor) }}</dd>
+                              }
+                              @if (opcao.detalhes.local) {
+                                <dt>Local</dt><dd>{{ opcao.detalhes.local }}</dd>
+                              }
+                              @if (opcao.detalhes.requisitos) {
+                                <dt>Pré-requisitos</dt><dd>{{ opcao.detalhes.requisitos }}</dd>
+                              }
+                              @if (opcao.detalhes.inclusos) {
+                                <dt>O que está incluso</dt><dd>{{ opcao.detalhes.inclusos }}</dd>
+                              }
+                            </dl>
+                          </details>
+                        } @else {
+                          <a [href]="curso">Consultar pelo WhatsApp</a>
+                        }
+                      </td>
+                    }
+                    <td>
+                      @if (abaAgenda() === 'cursos' && opcao.vagas === 0) {
+                        <button class="botao botao-secundario" type="button"
+                          [attr.aria-expanded]="turmaEspera() === opcao.id"
+                          (click)="turmaEspera.set(turmaEspera() === opcao.id ? null : opcao.id); selecaoAgenda.set('')">Entrar na lista de espera</button>
+                      } @else {
+                        <label>
+                          <input type="radio" name="opcao-agenda" [checked]="selecaoAgenda() === opcao.rotulo"
+                            (change)="selecaoAgenda.set(opcao.rotulo); turmaEspera.set(null)" [attr.aria-label]="'Selecionar ' + opcao.rotulo">
+                          Selecionar
+                        </label>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td [attr.colspan]="abaAgenda() === 'cursos' ? 5 : 3">{{ abaAgenda() === 'servicos' ? 'Ainda não há horários publicados.' : 'Ainda não há turmas publicadas.' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          @if (opcaoEspera(); as opcao) {
+            @for (turma of [opcao]; track turma.id) {
+              <aznom-interesse [id]="turma.id" [turma]="turma.rotulo" (atualizar)="carregarAgenda()"></aznom-interesse>
+            }
+          }
+          @if (selecaoAgenda()) {
+            <p role="status">Você escolheu <strong>{{ selecaoAgenda() }}</strong>.</p>
+            @if (abaAgenda() === 'servicos') {
+              <button class="botao botao-secundario" type="button" (click)="selecaoAgenda.set('')">Limpar horário</button>
+            } @else {
+              <a class="botao" [href]="solicitarAgenda()">Consultar vaga pelo WhatsApp</a>
+            }
+          } @else if (abaAgenda() === 'cursos' && !telaCurso) {
+            <p><a href="./?tela=curso">Ver conteúdo do curso</a> · <a [href]="curso">Consultar turmas no WhatsApp</a></p>
+          }
+        </section>
+      }
+      @if (abaAgenda() === 'servicos') {
+        <section class="catalogo trabalhos" aria-labelledby="titulo-orcamento">
+          <h2 id="titulo-orcamento">Pedir orçamento</h2>
+          <form class="form-conta" (submit)="solicitarOrcamento($event)">
+            <label>Serviço
+              <input list="servicos-orcamento" maxlength="100" required [value]="servicoOrcamento()"
+                (input)="servicoOrcamento.set($any($event.target).value)">
+            </label>
+            <datalist id="servicos-orcamento">
+              @for (servico of servicos(); track servico.id) {
+                <option [value]="servico.nome"></option>
+              }
+            </datalist>
+            <label>Modelo do veículo
+              <input maxlength="100" required placeholder="Ex.: Fiat Argo" [value]="veiculoOrcamento()"
+                (input)="veiculoOrcamento.set($any($event.target).value)">
+            </label>
+            <button class="botao" type="submit" [disabled]="!servicoOrcamento().trim() || !veiculoOrcamento().trim()">Enviar pedido pelo WhatsApp</button>
+          </form>
+        </section>
+      }
+    } @else if (carregandoConta()) {
       <p class="catalogo" role="status">Verificando a sessão…</p>
     } @else if (!conta()) {
       <section class="catalogo" aria-labelledby="titulo-conta">
@@ -82,7 +256,7 @@
           @if (conta()?.papel === 'admin') {
             <a href="./?tela=painel">Painel administrativo</a>
           }
-          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || galeriaOcupada()" (click)="sair()">Sair</button>
+          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || galeriaOcupada() || atendimentosOcupados() || depoimentosOcupados()" (click)="sair()">Sair</button>
         </div>
       </section>
       @if (telaPainel) {
@@ -90,10 +264,24 @@
           <section class="catalogo" aria-labelledby="titulo-painel">
             <h1 id="titulo-painel">Painel administrativo</h1>
             <nav class="acoes" aria-label="Seções do painel">
+              <a href="#painel-resumo">Resumo do dia</a>
+              <a href="#painel-recebimentos">Recebimentos</a>
               <a href="./?tela=painel#painel-catalogo">Catálogo de serviços</a>
               <a href="./?tela=painel#painel-agenda">Agenda</a>
+              <a href="./?tela=painel#painel-orcamentos">Orçamentos</a>
+              <a href="./?tela=painel#painel-atendimentos">Atendimentos</a>
+              <a href="#painel-veiculos">Veículos</a>
+              <a href="#painel-matriculas">Matrículas</a>
+              <a href="./?tela=painel#painel-espera">Lista de espera</a>
               <a href="./?tela=painel#painel-galeria">Galeria</a>
+              <a href="./?tela=painel#painel-depoimentos">Depoimentos</a>
             </nav>
+          </section>
+          <section class="catalogo trabalhos" id="painel-resumo" aria-labelledby="titulo-resumo">
+            <aznom-resumo [revisao]="revisaoResumo()" (verAtendimento)="abrirAtendimento($event)"></aznom-resumo>
+          </section>
+          <section class="catalogo trabalhos" id="painel-recebimentos" aria-labelledby="titulo-recebimentos">
+            <aznom-resumo-mensal [revisao]="revisaoFinanceiro()"></aznom-resumo-mensal>
           </section>
           <section class="catalogo trabalhos" id="painel-catalogo" aria-labelledby="titulo-painel-catalogo">
             <h2 id="titulo-painel-catalogo">Catálogo de serviços</h2>
@@ -127,6 +315,12 @@
                   <article class="card card-texto">
                     <h3>{{ servico.nome }}</h3>
                     <p>{{ servico.descricao }}</p>
+              @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
+                <figure>
+                  <blockquote>{{ item.texto }}</blockquote>
+                  <figcaption>{{ item.autor }}</figcaption>
+                </figure>
+              }
                     <p>{{ servico.ativo ? 'Visível no catálogo' : 'Oculto no catálogo' }}</p>
                     <button class="botao botao-secundario" type="button"
                       (click)="servicoEditando.set(servico); formServico.scrollIntoView({block: 'center'})">Editar serviço</button>
@@ -141,18 +335,84 @@
           </section>
           <section class="catalogo trabalhos" id="painel-agenda" aria-labelledby="titulo-painel-agenda">
             <h2 id="titulo-painel-agenda">Agenda</h2>
+            <h3>Visão semanal</h3>
+            <div class="filtros-semana">
+              <button class="botao botao-secundario" type="button" (click)="moverSemana(-7)">Semana anterior</button>
+              <label>Data da semana
+                <input type="date" [value]="semana()" #dataEscolhida (change)="selecionarSemana(dataEscolhida.value)">
+              </label>
+              <button class="botao botao-secundario" type="button" (click)="moverSemana(7)">Próxima semana</button>
+              <label>Situação
+                <select #filtro (change)="filtroSemana.set(filtro.value)">
+                  <option value="todos">Todos</option>
+                  <option value="livre">Sem reserva</option>
+                  <option value="confirmado">Confirmados</option>
+                  <option value="concluido">Concluídos</option>
+                  <option value="turma">Turmas</option>
+                </select>
+              </label>
+            </div>
+            @if (semanaOcupada()) {
+              <p role="status">Carregando a semana…</p>
+            } @else if (mensagemSemana()) {
+              <p role="status">{{ mensagemSemana() }}</p>
+              <button class="botao botao-secundario" type="button" (click)="carregarSemana()">Tentar novamente</button>
+            } @else {
+              <div class="agenda-tabela">
+                <table>
+                  <caption>Atendimentos e turmas de {{ dataBr(semana()) }} a {{ dataBr(diasSemana()[6].data) }}</caption>
+                  <thead><tr><th scope="col">Dia</th><th scope="col">Agenda</th></tr></thead>
+                  <tbody>
+                    @for (dia of diasSemana(); track dia.data) {
+                      <tr>
+                        <th scope="row">{{ rotuloDiaSemana(dia.data) }}</th>
+                        <td>
+                          @for (item of dia.itens; track item.id) {
+                            <div class="linha-semana">
+                              @if (item.tipo === 'cursos') {
+                                <span>Turma · {{ dataBr(item.inicio) }} a {{ dataBr(item.fim!) }} · {{ item.capacidade - item.confirmadas }} vagas livres</span>
+                              } @else if (atendimentosPorHorario().get(item.id); as atendimento) {
+                                <span>{{ item.hora }} · {{ atendimento.servico }} · {{ atendimento.cliente }} · {{ rotulosAtendimento[atendimento.status] }}</span>
+                                @if (atendimento.status === 'confirmado') {
+                                  <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                                    (click)="iniciarReagendamento(atendimento)">Reagendar</button>
+                                }
+                              } @else {
+                                <span>{{ item.hora }} · {{ item.confirmadas ? 'Ocupado' : item.livre ? 'Livre' : 'Sem reserva' }}</span>
+                              }
+                            </div>
+                          } @empty {
+                            <span>Sem itens</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
             <h2>{{ editando() ? 'Editar disponibilidade' : 'Nova disponibilidade' }}</h2>
-            <form #formAgenda class="form-conta" (submit)="salvarItem($event, tipo.value, inicio.value, fim.value, hora.value)">
+            <form #formAgenda class="form-conta" (submit)="salvarItem($event, formAgenda)">
               <label>Tipo
-                <select #tipo name="tipo" [value]="editando()?.tipo ?? 'servicos'">
+                <select name="tipo" [value]="editando()?.tipo ?? 'servicos'">
                   <option value="servicos">Atendimento</option>
                   <option value="cursos">Turma</option>
                 </select>
               </label>
-              <label>Data de início <input #inicio name="inicio" type="date" [value]="editando()?.inicio ?? ''" required></label>
-              <label>Hora do atendimento <input #hora name="hora" type="time" [value]="editando()?.hora ?? ''"></label>
-              <label>Data de término da turma <input #fim name="fim" type="date" [value]="editando()?.fim ?? ''"></label>
-              <p>Preencha a hora para atendimento ou a data de término para turma.</p>
+              <label>Data de início <input name="inicio" type="date" [value]="editando()?.inicio ?? ''" required></label>
+              <label>Hora do atendimento <input name="hora" type="time" [value]="editando()?.hora ?? ''"></label>
+              <label>Data de término da turma <input name="fim" type="date" [value]="editando()?.fim ?? ''"></label>
+              <label>Capacidade da turma <input name="capacidade" type="number" min="1" max="1000" step="1" value="1" required></label>
+              <p>Para atendimentos, preencha a hora. Para turmas, preencha a data de término e o total de vagas.</p>
+              <details>
+                <summary>Detalhes opcionais da turma</summary>
+                <div class="form-conta">
+                  <label>Valor em reais <input name="valor" inputmode="decimal" maxlength="9" placeholder="Ex.: 350,00"></label>
+                  <label>Local <input name="local" maxlength="200"></label>
+                  <label>Pré-requisitos <textarea name="requisitos" rows="2" maxlength="600"></textarea></label>
+                  <label>O que está incluso <textarea name="inclusos" rows="2" maxlength="600"></textarea></label>
+                </div>
+              </details>
               <div class="acoes">
                 <button class="botao" type="submit" [disabled]="ocupado()">Salvar</button>
                 @if (editando()) {
@@ -160,21 +420,180 @@
                 }
               </div>
             </form>
-            <h2>Disponibilidades publicadas</h2>
+            <h2>Próximos horários e turmas</h2>
+            @if (mensagem()) {
+              <p role="status">{{ mensagem() }}</p>
+            }
             <div class="grade">
-              @for (item of itensAgenda(); track item.id) {
+              @for (item of agendaAdmin(); track item.id) {
                 <article class="card card-texto">
                   <h3>{{ item.tipo === 'servicos' ? 'Atendimento' : 'Turma' }}</h3>
                   <p>{{ dataBr(item.inicio) }} {{ item.fim ? 'a ' + dataBr(item.fim) : 'às ' + item.hora }}</p>
+                  <p>{{ item.tipo === 'servicos'
+                    ? (item.confirmadas ? 'Ocupado' : 'Disponível')
+                    : item.confirmadas + ' de ' + item.capacidade + ' vagas confirmadas' + (item.matriculadas ? ' · ' + item.matriculadas + ' matrículas' : '') }}</p>
                   <div class="acoes">
-                    <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="editarDisponibilidade(item, formAgenda)">Editar disponibilidade</button>
-                    <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="removerItem(item.id)">Remover</button>
+                    @if (item.tipo === 'servicos') {
+                      @if (!atendimentosPorHorario().has(item.id)) {
+                        <button class="botao" type="button" [disabled]="ocupado() || atendimentosOcupados()"
+                          (click)="iniciarAtendimento(item, formAtendimento)">Registrar atendimento</button>
+                      }
+                    } @else {
+                      <button class="botao" type="button" [disabled]="ocupado() || item.confirmadas >= item.capacidade"
+                        (click)="alterarConfirmacoes(item, item.confirmadas + 1)">Confirmar uma vaga</button>
+                    }
+                    @if (item.confirmadas > item.matriculadas && !atendimentosPorHorario().has(item.id)) {
+                      <button class="botao botao-secundario" type="button" [disabled]="ocupado()"
+                        (click)="alterarConfirmacoes(item, item.confirmadas - 1)">Desfazer confirmação</button>
+                    }
+                    <button class="botao botao-secundario" type="button" [disabled]="ocupado() || atendimentosPorHorario().has(item.id)" (click)="editarDisponibilidade(item, formAgenda)">Editar disponibilidade</button>
+                    <button class="botao botao-secundario" type="button" [disabled]="ocupado() || item.confirmadas > 0" (click)="removerItem(item.id)">Remover</button>
                   </div>
                 </article>
               } @empty {
                 <p>Nenhuma disponibilidade publicada.</p>
               }
             </div>
+          </section>
+          <section class="catalogo trabalhos" id="painel-orcamentos" aria-labelledby="titulo-orcamentos">
+            <aznom-orcamentos [horarios]="horariosLivres()" (convertido)="aposConversao()"
+              (verAtendimento)="abrirAtendimento($event)" (alterado)="atualizarResumo()"></aznom-orcamentos>
+          </section>
+          <section class="catalogo trabalhos" id="painel-veiculos" aria-labelledby="titulo-veiculos">
+            @if (mensagemVeiculos()) { <p role="status">{{ mensagemVeiculos() }}</p> }
+            <aznom-veiculos [itens]="veiculos()" (verHistorico)="verHistoricoVeiculo($event)"
+              (alterado)="carregarVeiculos(); carregarAtendimentos()"></aznom-veiculos>
+          </section>
+          <section class="catalogo trabalhos" id="painel-atendimentos" aria-labelledby="titulo-atendimentos">
+            <h2 id="titulo-atendimentos">Histórico de atendimentos</h2>
+            @if (veiculoFiltrado(); as veiculo) {
+              <div class="acoes">
+                <p>Histórico de {{ veiculo.modelo }} @if (veiculo.placa) { · {{ veiculo.placa }} }</p>
+                <button class="botao botao-secundario" type="button" (click)="veiculoHistorico.set(null)">Mostrar todos os veículos</button>
+              </div>
+            }
+            <div class="form-conta">
+              <label>Buscar por cliente, modelo ou placa
+                <input type="search" [value]="filtroAtendimento()" (input)="filtroAtendimento.set($any($event.target).value)">
+              </label>
+            </div>
+            <div [hidden]="!horarioAtendimento()">
+              <form #formAtendimento class="form-conta" (submit)="registrarAtendimento($event, formAtendimento)">
+                @if (horarioAtendimento(); as horario) {
+                  <h3>Confirmar atendimento em {{ dataBr(horario.inicio) }} às {{ horario.hora }}</h3>
+                }
+                <label>Nome do cliente <input name="cliente" maxlength="100" required></label>
+                <label>WhatsApp com DDD <input name="telefone" type="tel" maxlength="25"></label>
+                <label>Modelo do veículo <input name="veiculo" maxlength="100" required></label>
+                <label>Serviço <input name="servico" list="servicos-atendimento" maxlength="100" required></label>
+                <datalist id="servicos-atendimento">
+                  @for (servico of servicosAdmin(); track servico.id) {
+                    <option [value]="servico.nome"></option>
+                  }
+                </datalist>
+                <div class="acoes">
+                  <button class="botao" type="submit" [disabled]="atendimentosOcupados()">Confirmar atendimento</button>
+                  <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                    (click)="horarioAtendimento.set(null)">Fechar formulário</button>
+                </div>
+              </form>
+            </div>
+            @if (mensagemAtendimento()) {
+              <p role="status">{{ mensagemAtendimento() }}</p>
+            }
+            @if (reagendando(); as item) {
+              <form id="form-reagendar" #formReagendar class="form-conta" (submit)="reagendar($event, item, formReagendar)">
+                <h3>Reagendar atendimento de {{ item.cliente }}</h3>
+                <p>Horário atual: {{ dataBr(item.data) }} às {{ item.hora }}.</p>
+                @if (horariosLivres().length) {
+                  <label>Novo horário
+                    <select name="novoHorario" required>
+                      <option value="">Selecione um horário</option>
+                      @for (horario of horariosLivres(); track horario.id) {
+                        <option [value]="horario.id">{{ dataBr(horario.inicio) }} às {{ horario.hora }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+                <div class="acoes">
+                  @if (horariosLivres().length) {
+                    <button class="botao" type="submit" [disabled]="atendimentosOcupados()">Confirmar reagendamento</button>
+                  } @else {
+                    <p>Nenhum horário livre. Cadastre uma disponibilidade na agenda.</p>
+                  }
+                  <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()" (click)="reagendando.set(null)">Fechar reagendamento</button>
+                </div>
+              </form>
+            }
+            <div class="grade">
+              @for (item of atendimentosFiltrados(); track item.id) {
+                <article class="card card-texto" [id]="'atendimento-' + item.id">
+                  <h3>{{ item.servico }}</h3>
+                  <p>{{ dataBr(item.data) }} às {{ item.hora }} · {{ rotulosAtendimento[item.status] }}</p>
+                  <p>{{ item.cliente }} · {{ item.modelo_cadastrado ?? item.veiculo }} @if (item.placa) { · {{ item.placa }} }</p>
+                  @if (item.status === 'confirmado') {
+                    <p>{{ etapasEntrega[item.andamento] }}
+                      @if (item.previsao_entrega) { · Previsão de retirada: {{ dataHoraEntrega(item.previsao_entrega) }} }
+                    </p>
+                  } @else if (item.entregue_em) {
+                    <p>Entregue em {{ dataHoraEntrega(item.entregue_em) }}</p>
+                  }
+                  @if (item.reagendamentos.length) {
+                    <details>
+                      <summary>Histórico de reagendamentos</summary>
+                      <ul>
+                        @for (mudanca of item.reagendamentos; track $index) {
+                          <li>De {{ rotuloDataHora(mudanca.anterior) }} para {{ rotuloDataHora(mudanca.novo) }}</li>
+                        }
+                      </ul>
+                    </details>
+                  }
+                  <div class="acoes">
+                    <button class="botao botao-secundario" type="button" [attr.aria-expanded]="fichaSelecionada() === item.id"
+                      (click)="fichaSelecionada.set(fichaSelecionada() === item.id ? null : item.id)">
+                      {{ fichaSelecionada() === item.id ? 'Fechar ficha' : 'Abrir ficha do veículo' }}
+                    </button>
+                    @if (item.telefone && item.status === 'confirmado') {
+                      <a class="botao botao-secundario" [href]="mensagemCliente(item, 'confirmacao')" target="_blank" rel="noopener">Preparar confirmação</a>
+                      <a class="botao botao-secundario" [href]="mensagemCliente(item, 'lembrete')" target="_blank" rel="noopener">Preparar lembrete</a>
+                      @if (item.andamento === 'pronto') {
+                        <a class="botao botao-secundario" [href]="mensagemCliente(item, 'retirada')" target="_blank" rel="noopener">Preparar aviso de retirada</a>
+                      }
+                      @if (item.reagendamentos.length) {
+                        <a class="botao botao-secundario" [href]="mensagemCliente(item, 'reagendamento')" target="_blank" rel="noopener">Preparar aviso de reagendamento</a>
+                      }
+                    }
+                  </div>
+                  @if (fichaSelecionada() === item.id) {
+                    <aznom-ficha-veiculo [item]="item" [veiculos]="veiculos()" (atualizada)="carregarAtendimentos()"
+                      (veiculoAlterado)="carregarVeiculos()" (verHistorico)="verHistoricoVeiculo($event)"></aznom-ficha-veiculo>
+                  }
+                  @if (item.status === 'confirmado') {
+                    <div class="acoes">
+                      <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                        (click)="iniciarReagendamento(item)">Reagendar</button>
+                      <button class="botao" type="button" [disabled]="atendimentosOcupados()"
+                        (click)="atualizarAtendimento(item, 'concluido')">Marcar como entregue</button>
+                      <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                        (click)="atualizarAtendimento(item, 'cancelado')">Cancelar atendimento</button>
+                    </div>
+                  }
+                </article>
+              } @empty {
+                @if (atendimentosOcupados()) {
+                  <p role="status">Carregando atendimentos…</p>
+                } @else if (!mensagemAtendimento()) {
+                  <p>{{ (filtroAtendimento() || veiculoHistorico()) ? 'Nenhum atendimento corresponde à busca.' : 'Nenhum atendimento registrado.' }}</p>
+                }
+              }
+            </div>
+          </section>
+          <section class="catalogo trabalhos" id="painel-espera" aria-labelledby="titulo-espera">
+            <aznom-lista-espera [revisao]="agendaAdmin()" (matriculaAlterada)="matriculaAlterada()"></aznom-lista-espera>
+          </section>
+          <section class="catalogo trabalhos" id="painel-matriculas" aria-labelledby="titulo-matriculas">
+            <aznom-matriculas [revisao]="revisaoMatriculas()" [turmas]="turmasAbertas()"
+              (alterada)="matriculaAlterada()" (pagamentoAlterado)="atualizarFinanceiro()"></aznom-matriculas>
           </section>
           <section class="catalogo trabalhos" id="painel-galeria" aria-labelledby="titulo-painel-galeria">
             <h2 id="titulo-painel-galeria">Galeria</h2>
@@ -219,68 +638,50 @@
               }
             </div>
           </section>
+          <section class="catalogo trabalhos" id="painel-depoimentos" aria-labelledby="titulo-depoimentos-admin">
+            <h2 id="titulo-depoimentos-admin">Depoimentos</h2>
+            <form #formDepoimento class="form-conta" (submit)="salvarDepoimento($event, formDepoimento)">
+              <h3>{{ depoimentoEditando() ? 'Editar depoimento' : 'Novo depoimento' }}</h3>
+              <label>Nome a exibir <input name="autor" maxlength="80" required></label>
+              <label>Serviço
+                <input name="servico" list="servicos-atendimento" maxlength="100" required>
+              </label>
+              <label>Depoimento <textarea name="texto" rows="4" maxlength="600" required></textarea></label>
+              <label><input type="checkbox" name="publicado"> Exibir no site</label>
+              <label><input type="checkbox" name="autorizado"> O cliente autorizou publicar este texto com o nome acima</label>
+              <div class="acoes">
+                <button class="botao" type="submit" [disabled]="depoimentosOcupados()">Salvar depoimento</button>
+                @if (depoimentoEditando()) {
+                  <button class="botao botao-secundario" type="button" [disabled]="depoimentosOcupados()"
+                    (click)="depoimentoEditando.set(null); formDepoimento.reset()">Cancelar edição</button>
+                }
+              </div>
+            </form>
+            @if (mensagemDepoimento()) {
+              <p role="status">{{ mensagemDepoimento() }}</p>
+            }
+            <div class="grade">
+              @for (item of depoimentos(); track item.id) {
+                <article class="card card-texto">
+                  <h3>{{ item.autor }} · {{ item.servico }}</h3>
+                  <blockquote>{{ item.texto }}</blockquote>
+                  <p>{{ item.publicado ? 'Publicado' : 'Rascunho' }}</p>
+                  <button class="botao botao-secundario" type="button" [disabled]="depoimentosOcupados()"
+                    (click)="iniciarDepoimento(item, formDepoimento)">Editar depoimento</button>
+                </article>
+              } @empty {
+                @if (!depoimentosOcupados() && !mensagemDepoimento()) {
+                  <p>Nenhum depoimento cadastrado.</p>
+                }
+              }
+            </div>
+          </section>
         } @else {
           <p class="catalogo">O painel é exclusivo do administrador.</p>
         }
-      } @else if (telaAgenda) {
-        @if (ocupado()) {
-          <p class="catalogo" role="status">Carregando agenda…</p>
-        } @else {
-          <section class="catalogo" aria-labelledby="titulo-agenda">
-            <h1 id="titulo-agenda">Agenda da AZNOM</h1>
-            <p>Escolha um horário ou uma turma. A confirmação é feita pelo WhatsApp.</p>
-            <div class="acoes" role="group" aria-label="Tipo de agenda">
-              <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'servicos'"
-                [attr.aria-pressed]="abaAgenda() === 'servicos'" (click)="trocarAbaAgenda('servicos')">Serviços</button>
-              <button class="botao" type="button" [class.botao-secundario]="abaAgenda() !== 'cursos'"
-                [attr.aria-pressed]="abaAgenda() === 'cursos'" (click)="trocarAbaAgenda('cursos')">Cursos</button>
-            </div>
-
-            <div class="agenda-tabela">
-              <table>
-                <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso de uma semana' }}</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">{{ abaAgenda() === 'servicos' ? 'Data' : 'Início' }}</th>
-                    <th scope="col">{{ abaAgenda() === 'servicos' ? 'Horário' : 'Término' }}</th>
-                    <th scope="col">Escolher</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (opcao of opcoesAgenda(); track opcao.id) {
-                    <tr [class.linha-selecionada]="selecaoAgenda() === opcao.rotulo">
-                      <td>{{ opcao.primeiraColuna }}</td>
-                      <td>{{ opcao.segundaColuna }}</td>
-                      <td>
-                        <label>
-                          <input type="radio" name="opcao-agenda" [checked]="selecaoAgenda() === opcao.rotulo"
-                            (change)="selecaoAgenda.set(opcao.rotulo)" [attr.aria-label]="'Selecionar ' + opcao.rotulo">
-                          Selecionar
-                        </label>
-                      </td>
-                    </tr>
-                  } @empty {
-                    <tr>
-                      <td colspan="3">{{ abaAgenda() === 'servicos' ? 'Ainda não há horários publicados.' : 'Ainda não há turmas publicadas.' }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-
-            @if (selecaoAgenda()) {
-              <p role="status">Você escolheu <strong>{{ selecaoAgenda() }}</strong>.</p>
-              <a class="botao" [href]="solicitarAgenda()">Solicitar pelo WhatsApp</a>
-            } @else {
-              <p><a [href]="abaAgenda() === 'servicos'
-                ? whatsapp('Olá, AZNOM! Quais são os horários disponíveis?')
-                : curso">Consultar disponibilidade pelo WhatsApp</a></p>
-            }
-          </section>
-        }
       }
     }
-    @if (mensagem()) {
+    @if (mensagem() && !(telaPainel && conta()?.papel === 'admin')) {
       <p class="catalogo" role="status">{{ mensagem() }}</p>
     }
   </main>
@@ -291,7 +692,7 @@
       <a href="#servicos">Serviços</a>
       <a href="./?tela=galeria">Galeria</a>
       <a href="./?tela=agenda">Agenda</a>
-      <a href="#curso">Curso</a>
+      <a href="./?tela=curso">Curso</a>
       <a href="#contato">Contato</a>
       <a href="./?tela=conta">Entrar</a>
     </nav>
@@ -305,23 +706,26 @@
         <p>Lavagem detalhada, correção de pintura e proteção para o seu carro.</p>
         <div class="acoes">
           <a class="botao" href="#agendamento">Agendar serviço</a>
-          <a class="botao botao-secundario" href="#curso">Conhecer o curso</a>
+          <a class="botao botao-secundario" href="./?tela=curso">Conhecer o curso</a>
         </div>
       </div>
     </section>
 
-    <section class="catalogo trabalhos" aria-label="Galeria e agenda">
-      <div class="grade">
-        <article class="card card-texto">
-          <h2>Ver imagens dos serviços</h2>
-          <p>Confira fotos de antes e depois e exemplos de serviços.</p>
-          <a class="botao" href="./?tela=galeria">Abrir galeria</a>
-        </article>
-        <article class="card card-texto">
-          <h2>Ver agenda</h2>
-          <p>Consulte horários de atendimento e turmas do curso.</p>
-          <a class="botao" href="./?tela=agenda">Abrir agenda</a>
-        </article>
+    <section class="catalogo trabalhos" aria-labelledby="titulo-comparacao">
+      <h2 id="titulo-comparacao">Restauração de faróis</h2>
+      <div class="comparacao comparacao-inicial">
+        <figure>
+          <img src="imagens/farol-antes.webp" width="771" height="523" loading="lazy" alt="Farol opaco do carro vermelho">
+          <figcaption>Antes</figcaption>
+        </figure>
+        <figure>
+          <img src="imagens/farol-depois.webp" width="895" height="452" loading="lazy" alt="Farol do mesmo carro após a restauração">
+          <figcaption>Depois</figcaption>
+        </figure>
+      </div>
+      <div class="acoes">
+        <a class="botao" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento de restauração</a>
+        <a class="botao botao-secundario" href="./?tela=galeria">Ver galeria</a>
       </div>
     </section>
 
@@ -341,7 +745,13 @@
             <article class="card card-texto">
               <h3>{{ servico.nome }}</h3>
               <p>{{ servico.descricao }}</p>
-              <a class="link-servico" [href]="whatsapp('Olá, AZNOM! Gostaria de agendar: ' + servico.nome + '. Qual a disponibilidade?')" [attr.aria-label]="'Consultar horário para ' + servico.nome">Consultar horário ↗</a>
+              @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
+                <figure>
+                  <blockquote>{{ item.texto }}</blockquote>
+                  <figcaption>{{ item.autor }}</figcaption>
+                </figure>
+              }
+              <a class="link-servico" [href]="linkOrcamento(servico.nome)" [attr.aria-label]="'Pedir orçamento de ' + servico.nome">Pedir orçamento ↗</a>
             </article>
           } @empty {
             <p>Nenhum serviço disponível no momento.</p>
@@ -352,23 +762,16 @@
 
 
 
-    <section class="catalogo curso" id="curso" aria-labelledby="titulo-curso">
-      <p class="categoria">CURSO DE ESTÉTICA AUTOMOTIVA · 1 SEMANA</p>
-      <h2 id="titulo-curso">Aprenda do primeiro enxágue ao acabamento final</h2>
-      <p>Em uma semana, Marllon apresenta os principais serviços da estética automotiva e explica a finalidade e as etapas de cada técnica.</p>
-      <ul>
-        <li>Lavagem técnica e descontaminação da pintura</li>
-        <li>Higienização interna</li>
-        <li>Polimento e vitrificação de pintura</li>
-        <li>Restauração de faróis</li>
-      </ul>
-      <a class="botao" [href]="curso">Consultar datas e vagas</a>
+    <section class="catalogo curso" id="curso" aria-labelledby="titulo-curso-inicial">
+      <h2 id="titulo-curso-inicial">Curso de estética automotiva</h2>
+      <p>Uma semana para conhecer as etapas dos principais serviços, da lavagem à proteção da pintura.</p>
+      <a class="botao" href="./?tela=curso">Ver conteúdo e próximas turmas</a>
     </section>
 
     <section class="catalogo trabalhos" id="agendamento" aria-labelledby="titulo-agendamento">
       <h2 id="titulo-agendamento">Agende seu serviço</h2>
       <p>Informe o modelo do veículo, o serviço desejado e o melhor dia para você. A AZNOM confirma a disponibilidade pelo WhatsApp.</p>
-      <a class="botao" [href]="whatsapp('Olá, AZNOM! Gostaria de agendar um serviço.\nVeículo: \nServiço: \nMelhor dia: ')">Solicitar agendamento pelo WhatsApp</a>
+      <a class="botao" [href]="linkOrcamento()">Pedir orçamento e consultar horários</a>
     </section>
   </main>
 }

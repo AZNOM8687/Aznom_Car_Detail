@@ -19,12 +19,12 @@ export const catalogoInicial = servicos.map(([nome, descricao], indice) => ({
 }));
 
 export const ilustracoes = [
-  { arquivo: 'lavagem', titulo: 'Lavagem técnica — antes e depois' },
-  { arquivo: 'higienizacao', titulo: 'Higienização interna — antes e depois' },
-  { arquivo: 'polimento', titulo: 'Polimento de pintura — antes e depois' },
-  { arquivo: 'farois', titulo: 'Restauração de faróis — antes e depois' },
-  { arquivo: 'vitrificacao', titulo: 'Aplicação de vitrificação na pintura' },
-  { arquivo: 'politriz', titulo: 'Politriz sobre o capô' },
-  { arquivo: 'moto', titulo: 'Lavagem de motocicleta' },
-  { arquivo: 'colheitadeira', titulo: 'Polimento de máquina agrícola' },
+  { arquivo: 'lavagem', servico: 'Lavagem técnica detalhada', titulo: 'Lavagem técnica — antes e depois' },
+  { arquivo: 'higienizacao', servico: 'Higienização interna', titulo: 'Higienização interna — antes e depois' },
+  { arquivo: 'polimento', servico: 'Polimento técnico', titulo: 'Polimento de pintura — antes e depois' },
+  { arquivo: 'farois', servico: 'Restauração de faróis', titulo: 'Restauração de faróis — antes e depois' },
+  { arquivo: 'vitrificacao', servico: 'Vitrificação de pintura', titulo: 'Aplicação de vitrificação na pintura' },
+  { arquivo: 'politriz', servico: 'Polimento técnico', titulo: 'Politriz sobre o capô' },
+  { arquivo: 'moto', servico: '', titulo: 'Lavagem de motocicleta' },
+  { arquivo: 'colheitadeira', servico: '', titulo: 'Polimento de máquina agrícola' },
 ];

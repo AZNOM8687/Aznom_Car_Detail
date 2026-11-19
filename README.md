@@ -61,7 +61,11 @@ RETURNING email, papel;
 3. Atualize a página e abra **Painel administrativo**. Cadastre um horário de atendimento ou uma turma para que a agenda mostre as primeiras disponibilidades.
 4. Abra http://127.0.0.1:4200/?tela=agenda e verifique as abas de serviços e cursos. Para conferir a experiência do cliente, teste com uma segunda conta comum.
 
-A agenda registra disponibilidades. Os clientes solicitam um horário ou uma vaga pelo WhatsApp e a AZNOM confirma a reserva na conversa.
+A agenda é pública. Os clientes escolhem um horário ou uma turma e enviam a solicitação pelo WhatsApp. Após confirmar a reserva na conversa, marque o horário como ocupado ou confirme uma vaga da turma no painel. O site exibe só horários livres e turmas com vagas. Para serviços, use **Registrar atendimento** na agenda do painel e informe cliente, veículo e serviço. O histórico permite concluir ou cancelar o atendimento. Cancelar libera o horário se ele ainda estiver no futuro. Para turmas, use **Desfazer confirmação** para liberar uma vaga.
+
+Os links do catálogo e do portfólio preenchem o serviço no formulário de orçamento. O visitante informa o veículo e pode escolher um horário antes de abrir o WhatsApp. A página do curso reúne o conteúdo e as turmas com vagas.
+
+Ao atualizar uma instalação existente, reaplique `aznom-api/agenda.sql` antes de iniciar a nova versão da API. Horários e turmas de instalações que ainda não tinham o controle de vagas começam com capacidade de uma vaga e nenhuma confirmação. Se a instalação já controlava vagas, os valores existentes são preservados. É possível detalhar um horário já ocupado com **Registrar atendimento**.
 
 ## Publicação
 
@@ -73,7 +77,7 @@ Para oferecer cadastro, login e agenda no site público, a interface precisa de 
 
 ### Netlify com API hospedada
 
-1. Hospede a pasta `aznom-api` em um serviço Node.js com HTTPS. Use `npm ci` para instalar as dependências, `npm start` para iniciar e configure `HOST=0.0.0.0`, `NODE_ENV=production` e a conexão PostgreSQL. Em um banco novo, execute `catalogo.sql`, `agenda.sql` e `galeria.sql`. Em um banco existente, reaplique `agenda.sql` para adicionar o login com Google.
+1. Hospede a pasta `aznom-api` em um serviço Node.js com HTTPS. Use `npm ci` para instalar as dependências, `npm start` para iniciar e configure `HOST=0.0.0.0`, `NODE_ENV=production` e a conexão PostgreSQL. Em um banco novo, execute `catalogo.sql`, `agenda.sql` e `galeria.sql`. Em um banco existente, reaplique `agenda.sql` para atualizar a agenda e o login com Google.
 2. Conecte o repositório ao site existente no Netlify. Configure `AZNOM_API_ORIGIN` no ambiente de build com a origem HTTPS do backend, sem o caminho `/api`. O `netlify.toml` na raiz compila o Angular e gera o proxy de `/api/*`. Verifique se o painel do Netlify usa essa configuração.
 3. Após publicar, abra `https://aznomcardetail.netlify.app/api/conta` sem sessão. A resposta esperada é JSON com status 401.
 
@@ -91,6 +95,35 @@ Em **Catálogo de serviços**, cadastre ou edite nome e descrição. Desmarque
 **Mostrar no catálogo** para ocultar um serviço. Na seção **Agenda**, cadastre,
 edite ou remova horários de atendimento e datas de turmas. As mudanças são
 gravadas no banco conectado à API. Esta atualização usa as tabelas existentes.
+
+## Operação da agenda e publicação de depoimentos
+
+- Em **Agenda**, use **Visão semanal** para navegar por data e filtrar horários sem reserva, atendimentos confirmados ou concluídos e turmas.
+- Use **Reagendar** em um atendimento confirmado. Escolha outro horário livre. A agenda libera o horário anterior e o histórico guarda as duas datas. Avise o cliente pelo WhatsApp.
+- Ao cadastrar ou editar uma turma, expanda **Detalhes opcionais da turma** para preencher valor em reais, local, pré-requisitos e o que está incluso. A página do curso mostra os campos preenchidos.
+- Em **Depoimentos**, cadastre o texto com o serviço e o nome que o cliente autorizou exibir. Para publicar, marque **Exibir no site** e confirme a autorização. Para retirar um depoimento do site, edite-o e desmarque **Exibir no site**.
+
+## Orçamentos, lista de espera e fichas de veículos
+
+- Em **Orçamentos**, registre pedidos recebidos pelo WhatsApp, anote o valor e acompanhe a situação. Quando o cliente fechar, use **Converter em atendimento** e escolha um horário livre. Os dados são reaproveitados e o orçamento guarda o vínculo com o atendimento.
+- Informe o WhatsApp com DDD no orçamento ou na ficha do atendimento. Use os botões de confirmação, lembrete e reagendamento para abrir a mensagem no WhatsApp e confira o texto antes de enviar.
+- Turmas lotadas continuam visíveis. Quem autorizar o contato pode registrar interesse. Em **Lista de espera**, a equipe pode consultar as vagas, abrir a mensagem de aviso quando houver disponibilidade e marcar quem já foi contatado.
+- Em **Histórico de atendimentos**, busque por cliente ou modelo. A ficha aceita serviços realizados, observações e uma foto de antes e uma de depois por atendimento, em JPG, PNG ou WebP de até 3 MB cada. As fichas e imagens ficam disponíveis apenas no painel administrativo.
+
+## Matrículas, veículos, pagamentos e resumo do dia
+
+- Quando uma pessoa da **Lista de espera** aceitar uma vaga, use **Confirmar matrícula**. O nome passa a constar em **Matrículas**. Cancelar uma matrícula preserva o registro e devolve uma vaga. Contagens de vagas confirmadas antes da atualização continuam registradas como confirmações manuais.
+- Na ficha de um atendimento, expanda **Identificar este veículo** para vincular um cadastro existente ou criar um novo com placa opcional. Use **Veículos** para corrigir o cadastro e abrir todos os atendimentos vinculados.
+- Em **Pagamento**, informe o valor combinado e registre cada recebimento como sinal ou pagamento do saldo. O valor do orçamento convertido ou da turma já vem preenchido quando cadastrado.
+- O **Resumo do dia** usa o horário de São Paulo. Ele mostra os próximos atendimentos de hoje, a quantidade de orçamentos aguardando resposta e as turmas com vagas e pessoas na espera.
+
+## Recebimentos, matrícula direta e entrega
+
+- Registre cada recebimento na ficha do atendimento ou da matrícula, com valor, data e forma de pagamento. Use **Estornar registro** para corrigir uma entrada e liberar esse valor no saldo. Em **Recebimentos**, escolha um mês para ver entradas, estornos e entregas do período, além do saldo em aberto atual.
+- A migração preserva valores recebidos anteriormente como registros sem data e sem forma de pagamento. Esses valores continuam abatendo o saldo. O relatório mensal usa somente movimentações com data e entregas registradas após a atualização.
+- Em **Matrículas**, use **Matrícula direta** para inscrever alguém em uma turma com vagas. Se o telefone já estiver na lista de espera da turma, a matrícula também será vinculada ao interesse.
+- Na ficha do veículo, abra **Andamento e entrega** para registrar a etapa, a previsão de retirada e os cuidados recomendados. Quando o veículo estiver pronto, o painel prepara o aviso no WhatsApp com a previsão e o saldo em aberto, se houver. Use **Marcar como entregue** para registrar a entrega efetiva.
+- Em **Comprovante de entrega**, selecione as fotos que quer incluir e abra o documento. Use **Imprimir ou salvar em PDF** para gerar o arquivo que será compartilhado com o cliente.
 
 ## Adicione fotos pelo painel
 
