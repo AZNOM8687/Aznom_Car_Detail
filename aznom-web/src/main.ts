@@ -16,6 +16,16 @@ type AtendimentoCliente = Pick<DadosEntrega,
   'id' | 'andamento' | 'status' | 'previsao_entrega' | 'entregue_em' | 'cuidados' |
   'servico' | 'servicos_realizados' | 'veiculo' | 'fotos' | 'retorno_sugerido'> & { data: string; hora: string };
 
+interface OrcamentoCliente {
+  id: number;
+  servico: string;
+  veiculo: string;
+  status: 'recebido' | 'enviado' | 'aguardando' | 'confirmado' | 'encerrado';
+  data: string;
+  valor_centavos: number | null;
+  atendimento_id: number | null;
+}
+
 interface Conta {
   email: string;
   papel: 'cliente' | 'admin';
@@ -426,6 +436,13 @@ class App implements OnInit {
   protected readonly sessaoOrcamento = signal(false);
   protected readonly enviandoOrcamento = signal(false);
   protected readonly mensagemOrcamento = signal('');
+  protected readonly orcamentosCliente = signal<OrcamentoCliente[]>([]);
+  protected readonly carregandoOrcamentosCliente = signal(false);
+  protected readonly erroOrcamentosCliente = signal(false);
+  protected readonly statusOrcamentoCliente = {
+    recebido: 'Pedido recebido', enviado: 'Orçamento enviado', aguardando: 'Aguardando resposta',
+    confirmado: 'Atendimento confirmado', encerrado: 'Encerrado',
+  };
   protected readonly atendimentosCliente = signal<AtendimentoCliente[] | null>(null);
   protected readonly carregandoAtendimentosCliente = signal(false);
   protected readonly mensagemAtendimentosCliente = signal('');
@@ -456,7 +473,10 @@ class App implements OnInit {
       next: conta => {
         this.ocupado.set(false);
         this.conta.set(conta);
-        if (this.telaConta) this.carregarAtendimentosCliente();
+        if (this.telaConta) {
+          this.carregarOrcamentosCliente();
+          this.carregarAtendimentosCliente();
+        }
         if (this.telaPainel && conta.papel === 'admin') {
           this.carregarDepoimentos();
           if (!this.telaDepoimentos) {
@@ -497,6 +517,9 @@ class App implements OnInit {
     this.veiculoHistorico.set(null);
     this.mensagemVeiculos.set('');
     this.filtroAtendimento.set('');
+    this.orcamentosCliente.set([]);
+    this.carregandoOrcamentosCliente.set(false);
+    this.erroOrcamentosCliente.set(false);
     this.atendimentosCliente.set(null);
     this.fichaCliente.set(null);
     this.depoimentos.set([]);
@@ -1220,6 +1243,35 @@ class App implements OnInit {
     return url.replace('#', '&veiculo=' + encodeURIComponent(this.parametros.get('veiculo') ?? '') + '#');
   }
 
+  protected carregarOrcamentosCliente(): void {
+    const conta = this.conta();
+    if (!conta || this.carregandoOrcamentosCliente()) return;
+    this.carregandoOrcamentosCliente.set(true);
+    this.erroOrcamentosCliente.set(false);
+    this.http.get<OrcamentoCliente[]>('/api/conta/orcamentos', { timeout: 10000 }).subscribe({
+      next: itens => {
+        if (this.conta() !== conta) return;
+        this.orcamentosCliente.set(itens);
+        this.carregandoOrcamentosCliente.set(false);
+      },
+      error: () => {
+        if (this.conta() !== conta) return;
+        this.erroOrcamentosCliente.set(true);
+        this.carregandoOrcamentosCliente.set(false);
+      },
+    });
+  }
+
+  protected temAtendimentoCliente(id: number): boolean {
+    return this.atendimentosCliente()?.some(item => item.id === id) ?? false;
+  }
+
+  protected verAtendimentoCliente(id: number): void {
+    const atendimento = document.getElementById('ficha-' + id);
+    atendimento?.focus();
+    atendimento?.scrollIntoView({ block: 'center' });
+  }
+
   protected carregarAtendimentosCliente(): void {
     const conta = this.conta();
     if (!conta) return;
@@ -1332,7 +1384,10 @@ class App implements OnInit {
         next: conta => {
           this.conta.set(conta);
           this.carregandoConta.set(false);
-          if (this.telaConta) this.carregarAtendimentosCliente();
+          if (this.telaConta) {
+            this.carregarOrcamentosCliente();
+            this.carregarAtendimentosCliente();
+          }
           if (this.telaPainel && conta.papel === 'admin') {
             this.carregarDepoimentos();
             if (!this.telaDepoimentos) {

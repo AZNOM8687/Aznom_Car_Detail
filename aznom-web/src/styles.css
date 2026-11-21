@@ -647,3 +647,6 @@ footer .acoes { margin: 0; }
 .form-conta label[hidden] { display: none; }
 .filtro-galeria { display: grid; gap: .4rem; width: fit-content; margin-block: 1rem; }
 .filtro-galeria select { max-width: 100%; padding: .6rem; font: inherit; border: 1px solid var(--borda-forte); border-radius: .4rem; }
+
+.meus-orcamentos { margin-block: 2rem; }
+.meus-orcamentos .painel-secao-topo .acoes { margin: 0; }

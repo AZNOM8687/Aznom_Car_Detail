@@ -409,6 +409,41 @@
               <a class="card card-texto" href="./?tela=painel"><strong>Painel administrativo</strong><span>Gerencie serviços, cursos e conteúdo do site.</span></a>
             }
           </div>
+          <section class="meus-orcamentos" aria-labelledby="titulo-meus-orcamentos">
+            <div class="painel-secao-topo">
+              <h2 id="titulo-meus-orcamentos">Meus orçamentos</h2>
+              <div class="acoes">
+                <button class="botao botao-secundario" type="button" [disabled]="carregandoOrcamentosCliente()"
+                  (click)="carregarOrcamentosCliente(); carregarAtendimentosCliente()">Atualizar</button>
+                <a class="botao" [href]="linkOrcamento()">Pedir orçamento</a>
+              </div>
+            </div>
+            @if (carregandoOrcamentosCliente()) {
+              <p role="status">Carregando seus orçamentos…</p>
+            } @else if (erroOrcamentosCliente()) {
+              <p role="status">Não foi possível carregar seus orçamentos. Use Atualizar para tentar novamente.</p>
+            } @else {
+              <div class="grade">
+                @for (pedido of orcamentosCliente(); track pedido.id) {
+                  <article class="card card-texto">
+                    <h3>{{ pedido.servico }}</h3>
+                    <p>{{ pedido.veiculo }} · {{ dataBr(pedido.data) }}</p>
+                    <p class="depoimento-estado">{{ statusOrcamentoCliente[pedido.status] }}</p>
+                    @if (pedido.valor_centavos !== null) {
+                      <p><strong>{{ reais.format(pedido.valor_centavos / 100) }}</strong></p>
+                    }
+                    @if (pedido.atendimento_id; as id) {
+                      @if (temAtendimentoCliente(id)) {
+                        <button class="botao botao-secundario" type="button" (click)="verAtendimentoCliente(id)">Ver atendimento</button>
+                      }
+                    }
+                  </article>
+                } @empty {
+                  <p>Os pedidos de orçamento enviados pelo site com esta conta aparecem aqui.</p>
+                }
+              </div>
+            }
+          </section>
           <section aria-labelledby="titulo-meus-atendimentos">
             <h2 id="titulo-meus-atendimentos">Meus atendimentos</h2>
             @if (carregandoAtendimentosCliente()) {
@@ -419,7 +454,7 @@
             } @else if (atendimentosCliente(); as itens) {
               <div class="grade">
                 @for (item of itens; track item.id) {
-                  <article class="card card-texto atendimento-cliente" [id]="'ficha-' + item.id">
+                  <article class="card card-texto atendimento-cliente" tabindex="-1" [id]="'ficha-' + item.id">
                     <h3>{{ item.servico }}</h3>
                     <p>{{ item.veiculo }} · {{ dataBr(item.data) }} às {{ item.hora }}</p>
                     <p class="depoimento-estado">{{ item.status === 'cancelado' ? 'Cancelado' : item.status === 'concluido' ? 'Concluído' : etapasEntrega[item.andamento] }}</p>

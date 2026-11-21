@@ -12,6 +12,17 @@ function enviarImagem(res, imagem) {
 }
 
 module.exports = function registrarExperienciaCliente(app, banco, { autenticar, admin, rota, limitar }) {
+  app.get(pedidosCliente, autenticar, rota(async (req, res) => {
+    const { rows } = await banco.query(`
+      SELECT id, veiculo, servico, status, atendimento_id,
+        to_char(criado_em AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') AS data,
+        CASE WHEN status IN ('enviado','aguardando','confirmado') THEN valor_centavos END AS valor_centavos
+      FROM aznom_orcamentos WHERE conta_id=$1
+      ORDER BY criado_em DESC, id DESC
+    `, [req.conta.id]);
+    res.json(rows);
+  }));
+
   app.post(pedidosCliente, autenticar, limitar, lerPedido, rota(async (req, res) => {
     const { cliente, telefone, veiculo, servico, horario = '', fotos = [] } = req.body ?? {};
     const campos = [cliente, veiculo, servico].map(valor => typeof valor === 'string' ? valor.trim() : '');
