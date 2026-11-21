@@ -25,6 +25,9 @@ interface Resumo {
   total_hoje: number;
   proximos: { id: number; cliente: string; servico: string; hora: string }[];
   orcamentos_aguardando: number;
+  comentarios_pendentes?: number;
+  retiradas_hoje?: number;
+  turmas_proximas?: number;
   turmas: { id: number; inicio: string; fim: string; vagas: number; espera: number }[];
 }
 
@@ -228,15 +231,27 @@ export class VeiculosPainel {
 @Component({
   selector: 'aznom-resumo',
   template: `
-    <div class="acoes">
-      <h2 id="titulo-resumo">Resumo do dia @if (dados(); as resumo) { · {{ dataBr(resumo.dia) }} }</h2>
+    <div class="painel-secao-topo">
+      <div><h2 id="titulo-resumo">Resumo do dia</h2>
+        @if (dados(); as resumo) { <p>{{ dataBr(resumo.dia) }}</p> }
+      </div>
       <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="carregar()">Atualizar resumo</button>
     </div>
-    @if (mensagem()) { <p role="status">{{ mensagem() }}</p> }
+    @if (ocupado()) { <p class="estado-painel" role="status">Carregando resumo do dia…</p> }
+    @if (mensagem()) { <p class="estado-painel" role="status">{{ mensagem() }}</p> }
     @if (dados(); as resumo) {
-      <div class="grade">
+      <div class="painel-indicadores">
+        <article><h3>Atendimentos restantes hoje</h3><strong>{{ resumo.total_hoje }}</strong><a href="./?tela=painel#painel-agenda">Abrir agenda</a></article>
+        <article><h3>Orçamentos aguardando resposta</h3><strong>{{ resumo.orcamentos_aguardando }}</strong><a href="./?tela=painel#painel-orcamentos">Abrir orçamentos</a></article>
+        @if (resumo.retiradas_hoje !== undefined) {
+          <article><h3>Retiradas previstas hoje</h3><strong>{{ resumo.retiradas_hoje }}</strong><a href="./?tela=painel#painel-atendimentos">Abrir atendimentos</a></article>
+          <article><h3>Depoimentos pendentes</h3><strong>{{ resumo.comentarios_pendentes }}</strong><a href="./?tela=painel&amp;secao=depoimentos">Revisar depoimentos</a></article>
+          <article><h3>Turmas nos próximos 7 dias</h3><strong>{{ resumo.turmas_proximas }}</strong><a href="./?tela=painel#painel-turmas">Abrir turmas</a></article>
+        }
+      </div>
+      <div class="grade painel-detalhes">
         <article class="card card-texto">
-          <h3>Próximos atendimentos de hoje · {{ resumo.total_hoje }}</h3>
+          <h3>Próximos atendimentos</h3>
           <ul>
             @for (item of resumo.proximos; track item.id) {
               <li><button class="botao botao-secundario" type="button" (click)="verAtendimento.emit(item.id)">
@@ -244,12 +259,6 @@ export class VeiculosPainel {
               </button></li>
             } @empty { <li>Nenhum atendimento confirmado para o restante do dia.</li> }
           </ul>
-          <a href="#painel-agenda">Abrir agenda</a>
-        </article>
-        <article class="card card-texto">
-          <h3>Orçamentos aguardando resposta</h3>
-          <p>{{ resumo.orcamentos_aguardando }}</p>
-          <a href="#painel-orcamentos">Abrir orçamentos</a>
         </article>
         <article class="card card-texto">
           <h3>Turmas com vaga e lista de espera</h3>
@@ -258,7 +267,7 @@ export class VeiculosPainel {
               <li>{{ dataBr(item.inicio) }} a {{ dataBr(item.fim) }} · {{ item.vagas }} {{ item.vagas === 1 ? 'vaga' : 'vagas' }} · {{ item.espera }} na espera</li>
             } @empty { <li>Nenhuma turma com vagas e pessoas na espera.</li> }
           </ul>
-          <a href="#painel-espera">Abrir lista de espera</a>
+          <a href="./?tela=painel#painel-espera">Abrir lista de espera</a>
         </article>
       </div>
     }
@@ -288,7 +297,9 @@ export class ResumoPainel {
       },
       error: erro => {
         if (consulta !== this.consulta) return;
-        this.mensagem.set(mensagemErro(erro, 'Não foi possível carregar o resumo.'));
+        this.mensagem.set(erro.status === 500
+          ? 'O servidor não conseguiu consultar o resumo. Confira os logs da API no Render.'
+          : mensagemErro(erro, 'Não foi possível carregar o resumo. Tente atualizar.'));
         this.ocupado.set(false);
       },
     });

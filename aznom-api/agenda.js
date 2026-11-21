@@ -181,7 +181,7 @@ module.exports = function registrarAgenda(app, banco) {
     const { rows } = await banco.query(`
       SELECT a.id, agenda_id, cliente, veiculo, servico, telefone, servicos_realizados, observacoes_veiculo,
         veiculo_id, v.modelo AS modelo_cadastrado, v.placa, valor_centavos, sinal_centavos, restante_pago_centavos,
-        andamento, cuidados, to_char(previsao_entrega, 'YYYY-MM-DD"T"HH24:MI') AS previsao_entrega,
+        andamento, cuidados, retorno_sugerido::text, a.conta_id IS NOT NULL AS vinculado_conta, to_char(previsao_entrega, 'YYYY-MM-DD"T"HH24:MI') AS previsao_entrega,
         to_char(entregue_em AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD"T"HH24:MI') AS entregue_em,
         coalesce((SELECT jsonb_agg(f.etapa ORDER BY f.etapa) FROM aznom_fotos_veiculo f WHERE f.atendimento_id=a.id), '[]') AS fotos,
         to_char(data, 'YYYY-MM-DD') AS data,
@@ -364,7 +364,13 @@ module.exports = function registrarAgenda(app, banco) {
   });
   registrarGestao(app, banco, { autenticar, admin, rota });
   registrarRecebimentos(app, banco, { autenticar, admin, rota, dataValida });
-  require('./depoimentos')(app, banco, { autenticar, admin, rota });
+  require('./depoimentos')(app, banco, {
+    autenticar, admin, rota, limitarComentario: (req, res, next) => limitar(req, res, next, 'comentarios'),
+  });
+  require('./experiencia-cliente')(app, banco, {
+    autenticar, admin, rota, limitar: (req, res, next) => limitar(req, res, next, 'orcamentos'),
+  });
+  require('./conteudo-curso')(app, banco, { autenticar, admin, rota });
   require('./galeria')(app, banco, { autenticar, admin, rota });
 
   app.use('/api', (erro, req, res, next) => {

@@ -20,6 +20,8 @@ interface Orcamento {
   valor_centavos: number | null;
   status: 'recebido' | 'enviado' | 'aguardando' | 'confirmado' | 'encerrado';
   atendimento_id: number | null;
+  horario_preferido?: string;
+  fotos?: number[];
 }
 
 interface Interesse {
@@ -109,6 +111,10 @@ function campos(formulario: HTMLFormElement, nomes: string[]): Record<string, Fo
         <article class="card card-texto">
           <h3>{{ item.cliente }} · {{ item.servico }}</h3>
           <p>{{ item.veiculo }} · {{ rotulos[item.status] }}</p>
+          @if (item.horario_preferido) { <p>Horário de preferência: {{ item.horario_preferido }}</p> }
+          @for (posicao of item.fotos ?? []; track posicao) {
+            <a class="botao botao-secundario" [href]="'/api/admin/orcamentos/' + item.id + '/fotos/' + posicao" target="_blank" rel="noopener">Foto {{ posicao }}</a>
+          }
           @if (item.valor_centavos !== null) {
             <p>{{ reais.format(item.valor_centavos / 100) }}</p>
           }

@@ -1,6 +1,7 @@
 ﻿import { HttpClient } from '@angular/common/http';
 import { Component, inject, input, output, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { dataBr, dataIso } from './datas';
 
 export type Andamento = 'agendado' | 'recebido' | 'execucao' | 'pronto';
 
@@ -11,6 +12,8 @@ export interface DadosEntrega {
   previsao_entrega: string | null;
   entregue_em: string | null;
   cuidados: string;
+  retorno_sugerido?: string | null;
+  vinculado_conta?: boolean;
   servico: string;
   servicos_realizados: string;
   modelo_cadastrado: string | null;
@@ -46,9 +49,19 @@ export function dataHoraEntrega(valor: string): string {
           </label>
         }
         <label>Previsão de retirada (horário de São Paulo)
-          <input type="datetime-local" name="previsao" [value]="item().previsao_entrega ?? ''">
+          <input type="text" name="previsao" placeholder="DD/MM/AAAA HH:MM" maxlength="16" [value]="previsaoBr()">
+        </label>
+        <label>Data sugerida de retorno
+          <input name="retorno" placeholder="DD/MM/AAAA" maxlength="10" [value]="dataBr(item().retorno_sugerido)">
         </label>
         <label>Cuidados para o cliente <textarea name="cuidados" rows="3" maxlength="1200" [value]="item().cuidados"></textarea></label>
+        @if (item().vinculado_conta === false) {
+          <label>E-mail da conta do cliente (opcional)
+            <input name="emailConta" type="email" maxlength="254" autocomplete="off"
+              [attr.aria-describedby]="'vinculo-cliente-' + item().id">
+          </label>
+          <small [id]="'vinculo-cliente-' + item().id">Confira o e-mail com o cliente. O vínculo libera o acompanhamento e a ficha de entrega na conta dele.</small>
+        }
         <button class="botao botao-secundario" type="submit" [disabled]="ocupado()">Salvar andamento e entrega</button>
       </form>
       @if (item().andamento === 'pronto' || item().status === 'concluido') {
@@ -73,14 +86,36 @@ export class EntregaEditor {
   readonly rotulos = etapasEntrega;
   readonly etapas = Object.keys(etapasEntrega) as Andamento[];
 
+  readonly dataBr = dataBr;
+
+  previsaoBr(): string {
+    const [data, hora] = (this.item().previsao_entrega ?? '').split('T');
+    return hora ? dataBr(data) + ' ' + hora : '';
+  }
+
   salvar(evento: Event, formulario: HTMLFormElement): void {
     evento.preventDefault();
     const dados = new FormData(formulario);
+    const previsao = String(dados.get('previsao') ?? '').trim();
+    const partes = /^(\S+) (\d{2}:\d{2})$/.exec(previsao);
+    const data = dataIso(partes?.[1]);
+    const hora = partes?.[2] ?? '';
+    if (previsao && (!data || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(hora))) {
+      this.mensagem.set('Informe a previsão no formato DD/MM/AAAA HH:MM.');
+      return;
+    }
+    const retorno = String(dados.get('retorno') ?? '').trim();
+    const retornoIso = dataIso(retorno);
+    if (retorno && !retornoIso) {
+      this.mensagem.set('Informe uma data de retorno válida no formato DD/MM/AAAA.');
+      return;
+    }
     this.ocupado.set(true);
     this.mensagem.set('');
     this.http.patch('/api/admin/atendimentos/' + this.item().id + '/entrega', {
       andamento: dados.get('andamento') ?? this.item().andamento,
-      previsao: dados.get('previsao'), cuidados: dados.get('cuidados'),
+      previsao: data ? data + 'T' + hora : '', cuidados: dados.get('cuidados'), retorno: retornoIso ?? '',
+      emailConta: dados.get('emailConta') ?? '',
     }, opcoes).subscribe({
       next: () => {
         this.ocupado.set(false);

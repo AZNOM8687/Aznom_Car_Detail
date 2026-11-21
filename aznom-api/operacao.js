@@ -22,7 +22,8 @@ function registrarOperacao(app, banco, { autenticar, admin, rota, limitarEspera 
 
   app.get(orcamentos, ...restrito, rota(async (req, res) => {
     const { rows } = await banco.query(`
-      SELECT id, cliente, telefone, veiculo, servico, valor_centavos, status, atendimento_id
+      SELECT id, cliente, telefone, veiculo, servico, valor_centavos, status, atendimento_id, horario_preferido,
+        coalesce((SELECT jsonb_agg(f.posicao ORDER BY f.posicao) FROM aznom_fotos_orcamento f WHERE f.orcamento_id=aznom_orcamentos.id), '[]') AS fotos
       FROM aznom_orcamentos ORDER BY criado_em DESC, id DESC
     `);
     res.json(rows);
@@ -53,7 +54,7 @@ function registrarOperacao(app, banco, { autenticar, admin, rota, limitarEspera 
     if (!idValido(agendaId)) return res.status(400).json({ mensagem: 'Selecione um horário livre.' });
     const { rowCount } = await banco.query(`
       WITH pedido AS MATERIALIZED (
-        SELECT id, cliente, telefone, veiculo, servico, valor_centavos FROM aznom_orcamentos
+        SELECT id, cliente, telefone, veiculo, servico, valor_centavos, conta_id FROM aznom_orcamentos
         WHERE id::bigint=$1 AND atendimento_id IS NULL AND status <> 'encerrado' FOR UPDATE
       ), horario AS (
         UPDATE aznom_agenda SET confirmadas=1, atendimento_registrado=true
@@ -61,8 +62,8 @@ function registrarOperacao(app, banco, { autenticar, admin, rota, limitarEspera 
           AND inicio + hora > now() AT TIME ZONE 'America/Sao_Paulo' AND EXISTS (SELECT 1 FROM pedido)
         RETURNING id, inicio, hora
       ), criado AS (
-        INSERT INTO aznom_atendimentos (agenda_id, cliente, telefone, veiculo, servico, data, hora, valor_centavos)
-        SELECT h.id, p.cliente, p.telefone, p.veiculo, p.servico, h.inicio, h.hora, p.valor_centavos FROM horario h CROSS JOIN pedido p
+        INSERT INTO aznom_atendimentos (agenda_id, cliente, telefone, veiculo, servico, data, hora, valor_centavos, conta_id)
+        SELECT h.id, p.cliente, p.telefone, p.veiculo, p.servico, h.inicio, h.hora, p.valor_centavos, p.conta_id FROM horario h CROSS JOIN pedido p
         RETURNING id
       )
       UPDATE aznom_orcamentos o SET status='confirmado', atendimento_id=c.id

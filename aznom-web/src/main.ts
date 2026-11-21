@@ -1,3 +1,4 @@
+import { dataBr, dataIso } from './datas';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpClient, provideHttpClient } from '@angular/common/http';
 import { afterNextRender, Component, computed, DestroyRef, inject, Injector, OnInit, provideZonelessChangeDetection, signal } from '@angular/core';
@@ -8,8 +9,12 @@ import { FichaAtendimento, FichaVeiculo, InteresseTurma, ListaEspera, Orcamentos
 
 import { MatriculasPainel, ResumoPainel, VeiculoCadastrado, VeiculosPainel } from './gestao';
 
-import { dataHoraEntrega, etapasEntrega } from './entrega';
+import { DadosEntrega, dataHoraEntrega, etapasEntrega } from './entrega';
 import { ResumoMensal } from './recebimentos';
+
+type AtendimentoCliente = Pick<DadosEntrega,
+  'id' | 'andamento' | 'status' | 'previsao_entrega' | 'entregue_em' | 'cuidados' |
+  'servico' | 'servicos_realizados' | 'veiculo' | 'fotos' | 'retorno_sugerido'> & { data: string; hora: string };
 
 interface Conta {
   email: string;
@@ -22,6 +27,25 @@ interface DetalhesTurma {
   requisitos?: string;
   inclusos?: string;
 }
+
+interface ConteudoCurso {
+  titulo: string;
+  descricao: string;
+  topicos: string[];
+  chamada: string;
+}
+
+const conteudoCursoInicial: ConteudoCurso = {
+  titulo: 'Curso de estética automotiva',
+  descricao: 'Em uma semana, Marllon apresenta os principais serviços da estética automotiva e explica a finalidade e as etapas de cada técnica.',
+  topicos: [
+    'Lavagem técnica e descontaminação da pintura',
+    'Higienização interna',
+    'Polimento e vitrificação de pintura',
+    'Restauração de faróis',
+  ],
+  chamada: 'Consultar valor e o que está incluso pelo WhatsApp',
+};
 
 interface Depoimento {
   id: number;
@@ -139,6 +163,9 @@ class App implements OnInit {
   constructor() {
     this.limpeza.onDestroy(() => this.limparPreviaServico());
     afterNextRender(() => {
+      if (this.telaAgenda && window.location.hash === '#titulo-orcamento') {
+        document.getElementById('titulo-orcamento')?.scrollIntoView();
+      }
       // Observe the viewport and the track once Angular renders the catalog.
       const observer = new ResizeObserver(() => this.atualizarCatalogo());
       observer.observe(document.documentElement);
@@ -164,6 +191,12 @@ class App implements OnInit {
     document.documentElement.dataset['tema'] = tema;
     try { localStorage.setItem('aznom-tema', tema); } catch { /* A sessão continua com o tema escolhido. */ }
   }
+
+  protected readonly destaquesInicio = [
+    { imagem: 'lavagem-studio', titulo: 'Lavagem detalhada', servico: 'Lavagem técnica detalhada' },
+    { imagem: 'polimento-studio', titulo: 'Polimento de pintura', servico: 'Polimento técnico' },
+    { imagem: 'interior-studio', titulo: 'Higienização interna', servico: 'Higienização interna' },
+  ];
 
   protected imagemServico(servico: { nome: string; imagem_url?: string | null }): string {
     if (servico.imagem_url) return servico.imagem_url;
@@ -215,12 +248,26 @@ class App implements OnInit {
 
   private readonly parametros = new URLSearchParams(window.location.search);
   private readonly tela = this.parametros.get('tela');
-  protected readonly telaCurso = this.tela === 'curso';
+  protected readonly telaTurma = this.tela === 'turma';
+  protected readonly telaCurso = this.tela === 'curso' || this.telaTurma;
+  protected readonly turmaPublica = computed(() => this.itensAgenda().find(item =>
+    item.tipo === 'cursos' && String(item.id) === this.parametros.get('id')));
+  protected readonly filtroGaleria = signal('');
+  protected readonly servicosGaleria = [...new Set(ilustracoes.flatMap(foto => foto.servico ? [foto.servico] : []))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  protected readonly ilustracoesGaleria = computed(() =>
+    ilustracoes.filter(foto => !this.filtroGaleria() || foto.servico === this.filtroGaleria()));
+  protected readonly comparacoesGaleria = [
+    { id: 'farol-real', nome: 'Carro vermelho', base: 'farol', controle: signal(50) },
+    { id: 'farol-prata', nome: 'Carro prata', base: 'farol-prata', controle: signal(50) },
+  ];
+  protected readonly telaComentarios = this.tela === 'comentarios';
   protected readonly telaGaleria = this.tela === 'galeria';
   protected readonly telaAgenda = this.tela === 'agenda' || this.telaCurso;
 
   protected readonly telaConta = this.tela === 'conta';
   protected readonly telaPainel = this.tela === 'painel';
+  protected readonly telaDepoimentos = this.telaPainel && this.parametros.get('secao') === 'depoimentos';
   protected readonly conta = signal<Conta | null>(null);
   protected readonly cadastro = signal(false);
   protected readonly carregandoConta = signal(true);
@@ -234,6 +281,11 @@ class App implements OnInit {
   ]).get(new URLSearchParams(window.location.search).get('google') ?? '');
   protected readonly itensAgenda = signal<ItemAgendaPublico[]>([]);
   protected readonly agendaAdmin = signal<ItemAgendaAdmin[]>([]);
+  protected readonly agendaOperacao = signal<ItemAgendaAdmin['tipo']>('servicos');
+  protected readonly agendasPorTipo = computed(() => ({
+    servicos: this.agendaAdmin().filter(item => item.tipo === 'servicos'),
+    cursos: this.agendaAdmin().filter(item => item.tipo === 'cursos'),
+  }));
   protected readonly semana = signal(segundaDaSemana(diaLocal()));
   protected readonly filtroSemana = signal('todos');
   protected readonly agendaSemanal = signal<ItemAgendaAdmin[]>([]);
@@ -242,13 +294,22 @@ class App implements OnInit {
   protected readonly diasSemana = computed(() => Array.from({ length: 7 }, (_, indice) => {
     const data = deslocarDia(this.semana(), indice);
     const itens = this.agendaSemanal().filter(item =>
-      item.inicio <= data && (item.fim ?? item.inicio) >= data &&
+      item.tipo === 'servicos' && item.inicio <= data && (item.fim ?? item.inicio) >= data &&
       (this.filtroSemana() === 'todos' || this.filtroSemana() === this.situacaoAgenda(item)),
     );
     return { data, itens };
   }));
   protected readonly reagendando = signal<Atendimento | null>(null);
   protected readonly horariosLivres = computed(() => this.agendaAdmin().filter(item => item.livre));
+  protected readonly conteudoCurso = signal(conteudoCursoInicial);
+  protected readonly conteudoCursoCarregado = signal(false);
+  protected readonly conteudoCursoOcupado = signal(false);
+  protected readonly mensagemCurso = signal('');
+  protected readonly comentarioOcupado = signal(false);
+  protected readonly mensagemComentario = signal('');
+
+  protected readonly depoimentosCarregados = signal(false);
+  protected readonly depoimentosPendentes = computed(() => this.depoimentos().filter(item => !item.publicado).length);
   protected readonly depoimentos = signal<Depoimento[]>([]);
   protected readonly depoimentosPorServico = computed(() => {
     const porServico = new Map<string, Depoimento[]>();
@@ -264,7 +325,7 @@ class App implements OnInit {
   protected readonly mensagemDepoimento = signal('');
   protected readonly reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   protected readonly dataSemana = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit',
+    timeZone: 'UTC', weekday: 'long',
   });
 
   protected readonly atendimentos = signal<Atendimento[]>([]);
@@ -320,11 +381,58 @@ class App implements OnInit {
   protected readonly abaAgenda = signal<'servicos' | 'cursos'>(this.telaCurso ? 'cursos' : 'servicos');
   protected readonly selecaoAgenda = signal('');
   protected readonly turmaEspera = signal<number | null>(null);
+  protected readonly hojeAgenda = diaLocal();
+  protected readonly diaAgenda = signal(this.hojeAgenda);
+  protected readonly mesAgenda = signal(this.hojeAgenda.slice(0, 7) + '-01');
+  private readonly formatoMesAgenda = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  protected readonly rotuloMesAgenda = computed(() => this.formatoMesAgenda.format(new Date(this.mesAgenda() + 'T12:00:00Z')));
+  protected readonly agendaDoTipo = computed(() => this.itensAgenda().filter(item => item.tipo === this.abaAgenda()));
+  protected readonly diasCalendario = computed(() => {
+    const primeiro = new Date(this.mesAgenda() + 'T12:00:00Z');
+    const ultimo = new Date(primeiro);
+    ultimo.setUTCMonth(ultimo.getUTCMonth() + 1, 0);
+    return Array.from({ length: primeiro.getUTCDay() + ultimo.getUTCDate() }, (_, indice) => {
+      const numero = indice - primeiro.getUTCDay() + 1;
+      if (numero < 1) return null;
+      const data = deslocarDia(this.mesAgenda(), numero - 1);
+      const itens = this.itensDoDia(data);
+      return { numero, data, estado: itens.some(item => item.vagas > 0) ? 'Disponível'
+        : itens.length ? 'Lista de espera' : 'Sem disponibilidade' };
+    });
+  });
+
+  private itensDoDia(data: string): ItemAgendaPublico[] {
+    if (data < this.hojeAgenda) return [];
+    return this.agendaDoTipo().filter(item => item.inicio <= data && (item.fim ?? item.inicio) >= data);
+  }
+
+  protected escolherDiaAgenda(data: string): void {
+    if (this.diaAgenda() === data) return;
+    this.diaAgenda.set(data);
+    this.selecaoAgenda.set('');
+    this.turmaEspera.set(null);
+  }
+
+  protected moverMesAgenda(delta: number): void {
+    const mes = new Date(this.mesAgenda() + 'T12:00:00Z');
+    mes.setUTCMonth(mes.getUTCMonth() + delta);
+    const data = mes.toISOString().slice(0, 10);
+    this.mesAgenda.set(data);
+    this.escolherDiaAgenda(data.slice(0, 7) === this.hojeAgenda.slice(0, 7) ? this.hojeAgenda : data);
+  }
+
   protected readonly opcaoEspera = computed(() => this.opcoesAgenda().find(item => item.id === this.turmaEspera()));
   protected readonly servicoOrcamento = signal((this.parametros.get('servico') ?? '').slice(0, 100));
-  protected readonly veiculoOrcamento = signal('');
+  protected readonly sessaoOrcamento = signal(false);
+  protected readonly enviandoOrcamento = signal(false);
+  protected readonly mensagemOrcamento = signal('');
+  protected readonly atendimentosCliente = signal<AtendimentoCliente[] | null>(null);
+  protected readonly carregandoAtendimentosCliente = signal(false);
+  protected readonly mensagemAtendimentosCliente = signal('');
+  protected readonly fichaCliente = signal<number | null>(Number(this.parametros.get('ficha')) || null);
+  protected readonly veiculoOrcamento = signal((this.parametros.get('veiculo') ?? '').slice(0, 100));
   protected readonly opcoesAgenda = computed(() =>
-    this.itensAgenda().filter(item => item.tipo === this.abaAgenda()).map(item => {
+    this.itensDoDia(this.diaAgenda()).map(item => {
       const primeiraColuna = this.dataBr(item.inicio);
       const segundaColuna = item.fim ? this.dataBr(item.fim) : item.hora;
       const separador = item.tipo === 'servicos' ? ' às ' : ' a ';
@@ -332,9 +440,7 @@ class App implements OnInit {
     }),
   );
 
-  protected dataBr(data: string): string {
-    return data.split('-').reverse().join('/');
-  }
+  protected readonly dataBr = dataBr;
 
   protected alternarCadastro(): void {
     this.cadastro.update(valor => !valor);
@@ -350,13 +456,17 @@ class App implements OnInit {
       next: conta => {
         this.ocupado.set(false);
         this.conta.set(conta);
+        if (this.telaConta) this.carregarAtendimentosCliente();
         if (this.telaPainel && conta.papel === 'admin') {
-          this.carregarAgendaAdmin();
-          this.carregarAtendimentos();
-          this.carregarVeiculos();
           this.carregarDepoimentos();
-          this.carregarCatalogoAdmin();
-          this.carregarFotos();
+          if (!this.telaDepoimentos) {
+            this.carregarAgendaAdmin();
+            this.carregarAtendimentos();
+            this.carregarVeiculos();
+            this.carregarConteudoCurso();
+            this.carregarCatalogoAdmin();
+            this.carregarFotos();
+          }
         }
       },
       error: erro => this.falha(erro),
@@ -387,7 +497,10 @@ class App implements OnInit {
     this.veiculoHistorico.set(null);
     this.mensagemVeiculos.set('');
     this.filtroAtendimento.set('');
+    this.atendimentosCliente.set(null);
+    this.fichaCliente.set(null);
     this.depoimentos.set([]);
+    this.depoimentosCarregados.set(false);
     this.depoimentoEditando.set(null);
     this.mensagemDepoimento.set('');
     this.atendimentos.set([]);
@@ -631,9 +744,18 @@ class App implements OnInit {
     return this.atendimentosPorHorario().get(item.id)?.status ?? (item.confirmadas ? 'confirmado' : 'livre');
   }
 
-  protected selecionarSemana(data: string): void {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data.startsWith('0000') ||
-        !Number.isFinite(Date.parse(data + 'T12:00:00Z'))) return;
+  protected alterarDataSemana(campo: HTMLInputElement): void {
+    const data = dataIso(campo.value);
+    if (!data) {
+      campo.setCustomValidity('Informe uma data válida no formato DD/MM/AAAA.');
+      campo.reportValidity();
+      return;
+    }
+    this.selecionarSemana(data);
+    campo.value = dataBr(this.semana());
+  }
+
+  private selecionarSemana(data: string): void {
     this.semana.set(segundaDaSemana(data));
     this.carregarSemana();
   }
@@ -670,7 +792,7 @@ class App implements OnInit {
   }
 
   protected rotuloDiaSemana(data: string): string {
-    return this.dataSemana.format(new Date(data + 'T12:00:00Z'));
+    return this.dataSemana.format(new Date(data + 'T12:00:00Z')) + ' · ' + this.dataBr(data);
   }
 
   protected iniciarReagendamento(item: Atendimento): void {
@@ -704,12 +826,80 @@ class App implements OnInit {
     });
   }
 
+  protected carregarConteudoCurso(): void {
+    this.conteudoCursoOcupado.set(true);
+    this.mensagemCurso.set('');
+    this.http.get<ConteudoCurso | null>('/api/conteudo-curso', { timeout: 10000 }).subscribe({
+      next: conteudo => {
+        this.conteudoCurso.set(conteudo ?? conteudoCursoInicial);
+        this.conteudoCursoCarregado.set(true);
+        this.conteudoCursoOcupado.set(false);
+      },
+      error: erro => {
+        this.conteudoCursoOcupado.set(false);
+        this.mensagemCurso.set(erro.status === 404
+          ? 'A API publicada no Render ainda não tem o editor de curso. Publique a versão atualizada da API.'
+          : erro.error?.mensagem || 'Não foi possível carregar os textos do curso. Tente novamente.');
+      },
+    });
+  }
+
+  protected salvarConteudoCurso(evento: Event, formulario: HTMLFormElement): void {
+    evento.preventDefault();
+    if (this.conteudoCursoOcupado()) return;
+    const campos = new FormData(formulario);
+    const dados = {
+      titulo: campos.get('titulo'), descricao: campos.get('descricao'), chamada: campos.get('chamada'),
+      topicos: String(campos.get('topicos') ?? '').split(/\r?\n/).map(texto => texto.trim()).filter(Boolean),
+    };
+    this.conteudoCursoOcupado.set(true);
+    this.mensagemCurso.set('');
+    this.http.put<ConteudoCurso>('/api/admin/conteudo-curso', dados, { headers: this.cabecalhos }).subscribe({
+      next: conteudo => {
+        this.conteudoCurso.set(conteudo);
+        this.conteudoCursoOcupado.set(false);
+        this.mensagemCurso.set('Textos do curso atualizados.');
+      },
+      error: erro => {
+        this.conteudoCursoOcupado.set(false);
+        this.mensagemCurso.set(erro.error?.mensagem || 'Não foi possível salvar os textos do curso.');
+      },
+    });
+  }
+
+  protected enviarComentario(evento: Event, formulario: HTMLFormElement): void {
+    evento.preventDefault();
+    if (this.comentarioOcupado()) return;
+    const campos = new FormData(formulario);
+    const dados = {
+      autor: campos.get('autor'), servico: campos.get('servico'), texto: campos.get('texto'),
+      autorizado: campos.has('autorizado'),
+    };
+    this.comentarioOcupado.set(true);
+    this.mensagemComentario.set('');
+    this.http.post('/api/depoimentos', dados, { headers: this.cabecalhos }).subscribe({
+      next: () => {
+        formulario.reset();
+        this.comentarioOcupado.set(false);
+        this.mensagemComentario.set('Comentário enviado. Ele aparecerá após aprovação.');
+      },
+      error: erro => {
+        this.comentarioOcupado.set(false);
+        this.mensagemComentario.set(erro.error?.mensagem || 'Não foi possível enviar o comentário.');
+      },
+    });
+  }
+
   protected carregarDepoimentos(): void {
     const url = this.telaPainel ? '/api/admin/depoimentos' : '/api/depoimentos';
+    this.mensagemDepoimento.set('');
     this.depoimentosOcupados.set(true);
     this.http.get<Depoimento[]>(url, { timeout: 5000 }).subscribe({
       next: itens => {
-        if (!this.telaPainel || this.conta()?.papel === 'admin') this.depoimentos.set(itens);
+        if (!this.telaPainel || this.conta()?.papel === 'admin') {
+          this.depoimentos.set(itens);
+          this.depoimentosCarregados.set(true);
+        }
         this.depoimentosOcupados.set(false);
       },
       error: () => {
@@ -731,7 +921,8 @@ class App implements OnInit {
       (formulario.elements.namedItem(campo) as HTMLInputElement | HTMLTextAreaElement).value = item[campo];
     }
     (formulario.elements.namedItem('publicado') as HTMLInputElement).checked = !!item.publicado;
-    (formulario.elements.namedItem('autor') as HTMLInputElement).focus();
+    afterNextRender(() => (formulario.elements.namedItem('autor') as HTMLInputElement).focus(),
+      { injector: this.injector });
   }
 
   protected salvarDepoimento(evento: Event, formulario: HTMLFormElement): void {
@@ -751,8 +942,8 @@ class App implements OnInit {
       next: () => {
         formulario.reset();
         this.depoimentoEditando.set(null);
-        this.mensagemDepoimento.set(dados.publicado ? 'Depoimento publicado.' : 'Depoimento salvo como rascunho.');
         this.carregarDepoimentos();
+        this.mensagemDepoimento.set(dados.publicado ? 'Depoimento publicado.' : 'Depoimento salvo como rascunho.');
       },
       error: erro => {
         this.depoimentosOcupados.set(false);
@@ -913,22 +1104,26 @@ class App implements OnInit {
   }
 
   protected editarDisponibilidade(item: ItemAgendaAdmin, formulario: HTMLFormElement): void {
+    const anterior = this.editando();
+    if (anterior && anterior.tipo !== item.tipo) {
+      document.querySelector<HTMLFormElement>(anterior.tipo === 'servicos' ? '#painel-agenda form' : '#painel-turmas form')?.reset();
+    }
     this.editando.set(item);
     this.mensagem.set('');
-    const tipo = formulario.elements.namedItem('tipo') as HTMLSelectElement;
+    this.agendaOperacao.set(item.tipo);
     const inicio = formulario.elements.namedItem('inicio') as HTMLInputElement;
-    const hora = formulario.elements.namedItem('hora') as HTMLInputElement;
-    const fim = formulario.elements.namedItem('fim') as HTMLInputElement;
-    tipo.value = item.tipo;
-    inicio.value = item.inicio;
-    hora.value = item.hora ?? '';
-    fim.value = item.fim ?? '';
-    (formulario.elements.namedItem('capacidade') as HTMLInputElement).value = String(item.capacidade);
-    for (const campo of ['valor', 'local', 'requisitos', 'inclusos'] as const) {
-      const controle = formulario.elements.namedItem(campo) as HTMLInputElement | HTMLTextAreaElement;
-      controle.value = String(item.detalhes[campo] ?? '');
+    inicio.value = dataBr(item.inicio);
+    if (item.tipo === 'servicos') {
+      (formulario.elements.namedItem('hora') as HTMLInputElement).value = item.hora ?? '';
+    } else {
+      (formulario.elements.namedItem('fim') as HTMLInputElement).value = dataBr(item.fim);
+      (formulario.elements.namedItem('capacidade') as HTMLInputElement).value = String(item.capacidade);
+      for (const campo of ['valor', 'local', 'requisitos', 'inclusos'] as const) {
+        const controle = formulario.elements.namedItem(campo) as HTMLInputElement | HTMLTextAreaElement;
+        controle.value = String(item.detalhes[campo] ?? '');
+      }
     }
-    tipo.focus();
+    inicio.focus();
   }
 
   protected cancelarEdicaoAgenda(formulario: HTMLFormElement): void {
@@ -938,10 +1133,18 @@ class App implements OnInit {
 
   protected salvarItem(evento: Event, formulario: HTMLFormElement): void {
     evento.preventDefault();
-    const id = this.editando()?.id;
     const campos = new FormData(formulario);
+    const tipo = campos.get('tipo') === 'cursos' ? 'cursos' : 'servicos';
+    this.agendaOperacao.set(tipo);
+    const inicio = dataIso(campos.get('inicio'));
+    const fim = dataIso(campos.get('fim'));
+    if (!inicio || (tipo === 'cursos' && !fim)) {
+      this.mensagem.set('Informe datas válidas no formato DD/MM/AAAA.');
+      return;
+    }
+    const id = this.editando()?.tipo === tipo ? this.editando()?.id : undefined;
     const dados = {
-      tipo: campos.get('tipo'), inicio: campos.get('inicio'), fim: campos.get('fim'),
+      tipo: campos.get('tipo'), inicio, fim,
       hora: campos.get('hora'), capacidade: Number(campos.get('capacidade')),
       detalhes: {
         valor: campos.get('valor'), local: campos.get('local'),
@@ -957,7 +1160,7 @@ class App implements OnInit {
     pedido.subscribe({
       next: () => {
         (evento.target as HTMLFormElement).reset();
-        this.editando.set(null);
+        if (this.editando()?.tipo === tipo) this.editando.set(null);
         this.mensagem.set('Agenda atualizada.');
         this.carregarAgendaAdmin();
       },
@@ -1001,7 +1204,89 @@ class App implements OnInit {
   protected linkOrcamento(servico = ''): string {
     const parametros = new URLSearchParams({ tela: 'agenda' });
     if (servico) parametros.set('servico', servico);
-    return './?' + parametros.toString();
+    return './?' + parametros.toString() + '#titulo-orcamento';
+  }
+
+  protected entrarParaOrcamento(): string {
+    return './?' + new URLSearchParams({
+      tela: 'conta', pedido: 'orcamento', servico: this.servicoOrcamento(), veiculo: this.veiculoOrcamento(),
+    });
+  }
+
+  protected readonly voltandoAoOrcamento = this.parametros.get('pedido') === 'orcamento';
+
+  protected voltarAoOrcamento(): string {
+    const url = this.linkOrcamento(this.servicoOrcamento());
+    return url.replace('#', '&veiculo=' + encodeURIComponent(this.parametros.get('veiculo') ?? '') + '#');
+  }
+
+  protected carregarAtendimentosCliente(): void {
+    const conta = this.conta();
+    if (!conta) return;
+    this.carregandoAtendimentosCliente.set(true);
+    this.mensagemAtendimentosCliente.set('');
+    this.http.get<AtendimentoCliente[]>('/api/conta/atendimentos', { timeout: 10000 }).subscribe({
+      next: itens => {
+        if (this.conta() !== conta) return;
+        this.atendimentosCliente.set(itens);
+        this.carregandoAtendimentosCliente.set(false);
+        const ficha = this.fichaCliente();
+        if (ficha && itens.some(item => item.id === ficha)) {
+          afterNextRender(() => document.getElementById('ficha-' + ficha)?.scrollIntoView(),
+            { injector: this.injector });
+        }
+      },
+      error: () => {
+        if (this.conta() !== conta) return;
+        this.carregandoAtendimentosCliente.set(false);
+        this.mensagemAtendimentosCliente.set('Não foi possível carregar seus atendimentos.');
+      },
+    });
+  }
+
+  protected async enviarOrcamento(evento: Event, formulario: HTMLFormElement, arquivos: FileList | null): Promise<void> {
+    evento.preventDefault();
+    if (this.enviandoOrcamento()) return;
+    const fotos = Array.from(arquivos ?? []);
+    if (fotos.length > 3 || fotos.some(foto => foto.size > 1048576 || !['image/jpeg', 'image/png', 'image/webp'].includes(foto.type))) {
+      this.mensagemOrcamento.set('Escolha até três fotos JPG, PNG ou WebP de até 1 MB cada.');
+      return;
+    }
+    const campos = new FormData(formulario);
+    this.enviandoOrcamento.set(true);
+    this.mensagemOrcamento.set('');
+    try {
+      const anexos = await Promise.all(fotos.map(foto => new Promise<{ dados: string; formato: string }>((resolve, reject) => {
+        const leitor = new FileReader();
+        leitor.onload = () => resolve({ dados: String(leitor.result).split(',')[1], formato: foto.type });
+        leitor.onerror = () => reject(leitor.error);
+        leitor.readAsDataURL(foto);
+      })));
+      this.http.post('/api/conta/orcamentos', {
+        cliente: campos.get('cliente'), telefone: campos.get('telefone'),
+        veiculo: this.veiculoOrcamento(), servico: this.servicoOrcamento(), horario: this.selecaoAgenda(), fotos: anexos,
+      }, { headers: this.cabecalhos }).subscribe({
+        next: () => {
+          formulario.reset();
+          this.veiculoOrcamento.set('');
+          this.servicoOrcamento.set('');
+          this.enviandoOrcamento.set(false);
+          this.mensagemOrcamento.set('Pedido enviado. A AZNOM retornará pelo WhatsApp informado.');
+        },
+        error: erro => {
+          this.enviandoOrcamento.set(false);
+          if (erro.status === 401) this.sessaoOrcamento.set(false);
+          this.mensagemOrcamento.set(erro.error?.mensagem || 'Não foi possível enviar o pedido. Tente novamente.');
+        },
+      });
+    } catch {
+      this.enviandoOrcamento.set(false);
+      this.mensagemOrcamento.set('Não foi possível ler as fotos anexadas.');
+    }
+  }
+
+  protected linkTurmaWhatsApp(inicio: string): string {
+    return this.whatsapp('Olá, AZNOM! Gostaria de consultar uma vaga na turma de ' + this.dataBr(inicio) + '.');
   }
 
   protected solicitarOrcamento(evento: Event): void {
@@ -1034,19 +1319,30 @@ class App implements OnInit {
   ngOnInit(): void {
     if (this.telaAgenda) {
       this.carregarAgenda();
-      if (!this.telaCurso) this.carregar();
+      if (this.telaCurso) this.carregarConteudoCurso();
+      else {
+        this.carregar();
+        this.http.get<Conta>('/api/conta', { timeout: 8000 }).subscribe({
+          next: () => this.sessaoOrcamento.set(true),
+          error: () => this.sessaoOrcamento.set(false),
+        });
+      }
     } else if (this.telaConta || this.telaPainel) {
       this.http.get<Conta>('/api/conta', { timeout: 5000 }).subscribe({
         next: conta => {
           this.conta.set(conta);
           this.carregandoConta.set(false);
+          if (this.telaConta) this.carregarAtendimentosCliente();
           if (this.telaPainel && conta.papel === 'admin') {
-            this.carregarAgendaAdmin();
-            this.carregarAtendimentos();
-            this.carregarVeiculos();
             this.carregarDepoimentos();
-            this.carregarCatalogoAdmin();
-            this.carregarFotos();
+            if (!this.telaDepoimentos) {
+              this.carregarAgendaAdmin();
+              this.carregarAtendimentos();
+              this.carregarVeiculos();
+              this.carregarConteudoCurso();
+              this.carregarCatalogoAdmin();
+              this.carregarFotos();
+            }
           }
         },
         error: erro => {
@@ -1054,8 +1350,8 @@ class App implements OnInit {
           if (erro.status !== 401) this.falha(erro);
         },
       });
-    } else if (this.telaGaleria) {
-      this.carregarFotos();
+    } else if (this.telaGaleria || this.telaComentarios) {
+      if (this.telaGaleria) this.carregarFotos();
       this.carregarDepoimentos();
     } else {
       this.carregar();

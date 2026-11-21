@@ -1,3 +1,57 @@
+<ng-template #gestaoDepoimentos>
+  <div class="depoimentos-topo">
+    @if (depoimentosCarregados()) {
+      <span>{{ depoimentos().length }} no total · {{ depoimentosPendentes() }} aguardando publicação</span>
+    } @else if (depoimentosOcupados()) {
+      <span role="status">Carregando depoimentos…</span>
+    }
+    @if (!telaDepoimentos) {
+      <a class="botao botao-secundario" href="./?tela=painel&amp;secao=depoimentos">Ver depoimentos</a>
+    }
+  </div>
+              <form #formDepoimento class="form-conta" [hidden]="telaDepoimentos && !depoimentoEditando()" (submit)="salvarDepoimento($event, formDepoimento)">
+                <h3>{{ depoimentoEditando() ? 'Editar depoimento' : 'Novo depoimento' }}</h3>
+                <label>Nome a exibir <input name="autor" maxlength="80" required></label>
+                <label>Serviço
+                  <input name="servico" [attr.list]="telaDepoimentos ? null : 'servicos-atendimento'" maxlength="100" required>
+                </label>
+                <label>Depoimento <textarea name="texto" rows="4" maxlength="600" required></textarea></label>
+                <label class="consentimento-comentario"><input type="checkbox" name="publicado"> Exibir no site</label>
+                <label class="consentimento-comentario"><input type="checkbox" name="autorizado"> O cliente autorizou publicar este texto com o nome acima</label>
+                <div class="acoes">
+                  <button class="botao" type="submit" [disabled]="depoimentosOcupados()">Salvar depoimento</button>
+                  @if (depoimentoEditando()) {
+                    <button class="botao botao-secundario" type="button" [disabled]="depoimentosOcupados()"
+                      (click)="depoimentoEditando.set(null); formDepoimento.reset()">Cancelar edição</button>
+                  }
+                </div>
+              </form>
+              @if (mensagemDepoimento()) {
+                <p role="status">{{ mensagemDepoimento() }}</p>
+                @if (!depoimentosCarregados() && !depoimentosOcupados()) {
+                  <button class="botao botao-secundario" type="button" (click)="carregarDepoimentos()">Tentar novamente</button>
+                }
+              }
+  @if (telaDepoimentos) {
+    <h2>Depoimentos cadastrados</h2>
+              <div class="lista-depoimentos">
+                @for (item of depoimentos(); track item.id) {
+                  <article class="card card-texto depoimento-card">
+                    <h3>{{ item.autor }} · {{ item.servico }}</h3>
+                    <blockquote>{{ item.texto }}</blockquote>
+                    <p class="depoimento-estado">{{ item.publicado ? 'Publicado' : 'Aguardando publicação' }}</p>
+                    <button class="botao botao-secundario" type="button" [disabled]="depoimentosOcupados()"
+                      (click)="iniciarDepoimento(item, formDepoimento)">Editar depoimento</button>
+                  </article>
+                } @empty {
+                  @if (!depoimentosOcupados() && !mensagemDepoimento()) {
+                    <p>Nenhum depoimento cadastrado.</p>
+                  }
+                }
+              </div>
+  }
+</ng-template>
+
 <ng-template #controleTema>
   <button type="button" class="controle-tema" (click)="alternarTema()"
     [attr.aria-label]="tema() === 'escuro' ? 'Ativar tema claro' : 'Ativar tema escuro'">
@@ -6,7 +60,37 @@
   </button>
 </ng-template>
 
-@if (telaGaleria) {
+@if (telaComentarios) {
+  <header class="barra barra-interna">
+    <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
+    <div class="barra-acoes"><ng-container *ngTemplateOutlet="controleTema"></ng-container><a href="./#comentarios">Voltar ao início</a></div>
+  </header>
+  <main class="catalogo pagina-depoimentos">
+    <h1>Comentários de clientes</h1>
+    @if (depoimentosCarregados()) {
+      <p>{{ depoimentos().length }} {{ depoimentos().length === 1 ? 'comentário publicado' : 'comentários publicados' }}</p>
+    }
+    @if (depoimentosOcupados()) {
+      <p role="status">Carregando comentários…</p>
+    } @else if (mensagemDepoimento()) {
+      <p role="status">Não foi possível carregar os comentários.</p>
+      <button class="botao botao-secundario" type="button" (click)="carregarDepoimentos()">Tentar novamente</button>
+    } @else {
+      <div class="lista-depoimentos">
+        @for (item of depoimentos(); track item.id) {
+          <figure class="card card-texto depoimento-card">
+            <span class="depoimento-servico">{{ item.servico }}</span>
+            <blockquote>{{ item.texto }}</blockquote>
+            <figcaption>{{ item.autor }}</figcaption>
+          </figure>
+        } @empty {
+          <p>Ainda não há comentários publicados.</p>
+        }
+      </div>
+    }
+    <a class="botao botao-secundario" href="./#comentarios">Deixar um comentário</a>
+  </main>
+} @else if (telaGaleria) {
   <header class="barra barra-interna">
     <a class="marca" href="./">AZNOM <span>CAR DETAIL</span></a>
     <div class="barra-acoes"><ng-container *ngTemplateOutlet="controleTema"></ng-container><a href="./">Voltar ao início</a></div>
@@ -14,35 +98,35 @@
   <main>
     <section class="catalogo trabalhos" id="galeria" aria-labelledby="titulo-galeria">
       <h1 id="titulo-galeria">Galeria de serviços</h1>
+      <label class="filtro-galeria">Filtrar galeria por serviço
+        <select #servicoGaleria [value]="filtroGaleria()" (change)="filtroGaleria.set(servicoGaleria.value)">
+          <option value="">Todos os serviços</option>
+          @for (nome of servicosGaleria; track nome) { <option [value]="nome">{{ nome }}</option> }
+        </select>
+      </label>
+      @if (!filtroGaleria() || filtroGaleria() === 'Restauração de faróis') {
+      <div class="grade comparacoes-galeria">
+        @for (par of comparacoesGaleria; track par.id) {
+          <article class="card card-texto" [id]="'portfolio-' + par.id">
+            <h2>Restauração de faróis · {{ par.nome }}</h2>
+            <figure class="resultado-foto">
+              <img [src]="'imagens/' + par.base + '-depois.webp'" loading="lazy" [alt]="'Farol restaurado · ' + par.nome">
+              <img class="resultado-antes" [src]="'imagens/' + par.base + '-antes.webp'" loading="lazy"
+                [alt]="'Farol opaco · ' + par.nome" [style.clip-path]="'inset(0 ' + (100 - par.controle()) + '% 0 0)'">
+              <span class="resultado-divisor" aria-hidden="true" [style.left.%]="par.controle()"></span>
+              <figcaption><span>Antes</span><span>Depois</span></figcaption>
+              <input #comparador type="range" min="0" max="100" [value]="par.controle()"
+                [attr.aria-label]="'Comparar antes e depois · ' + par.nome"
+                [attr.aria-valuetext]="par.controle() + '% da imagem de antes'"
+                (input)="par.controle.set(comparador.valueAsNumber)">
+            </figure>
+            <a class="botao botao-secundario" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento</a>
+          </article>
+        }
+      </div>
+      }
       <div class="comparacao galeria-extra">
-        <figure>
-          <a id="portfolio-farol-real" href="imagens/farol-antes.webp">
-            <img src="imagens/farol-antes.webp" width="771" height="523" loading="lazy" alt="Farol opaco do carro vermelho">
-          </a>
-          <figcaption>Restauração de faróis · carro vermelho · antes</figcaption>
-        </figure>
-        <figure>
-          <a href="imagens/farol-depois.webp">
-            <img src="imagens/farol-depois.webp" width="895" height="452" loading="lazy" alt="Farol do carro vermelho após a restauração">
-          </a>
-          <figcaption>Restauração de faróis · carro vermelho · depois
-            <a class="link-servico" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento de restauração de faróis</a>
-          </figcaption>
-        </figure>
-        <figure>
-          <a href="imagens/farol-prata-antes.webp">
-            <img src="imagens/farol-prata-antes.webp" loading="lazy" alt="Farol opaco do carro prata">
-          </a>
-          <figcaption>Restauração de faróis · carro prata · antes</figcaption>
-        </figure>
-        <figure>
-          <a href="imagens/farol-prata-depois.webp">
-            <img src="imagens/farol-prata-depois.webp" loading="lazy" alt="Farol do carro prata após a restauração">
-          </a>
-          <figcaption>Restauração de faróis · carro prata · depois
-            <a class="link-servico" [href]="linkOrcamento('Restauração de faróis')">Pedir orçamento de restauração de faróis</a>
-          </figcaption>
-        </figure>
+        @if (!filtroGaleria()) {
         @for (foto of fotosGaleria(); track foto.id) {
           <figure>
             <a [href]="'/api/galeria/' + foto.id">
@@ -51,7 +135,8 @@
             <figcaption>{{ foto.legenda }}</figcaption>
           </figure>
         }
-        @for (foto of ilustracoes; track foto.arquivo) {
+        }
+        @for (foto of ilustracoesGaleria(); track foto.arquivo) {
           <figure [id]="'portfolio-' + foto.arquivo">
             <a [href]="'imagens/' + foto.arquivo + '.webp'">
               <img [src]="'imagens/' + foto.arquivo + '.webp'" [alt]="foto.titulo" loading="lazy">
@@ -97,15 +182,14 @@
     @if (telaAgenda) {
       @if (telaCurso) {
         <section class="catalogo curso" aria-labelledby="titulo-curso">
-          <h1 id="titulo-curso">Curso de estética automotiva</h1>
-          <p>Em uma semana, Marllon apresenta os principais serviços da estética automotiva e explica a finalidade e as etapas de cada técnica.</p>
+          <h1 id="titulo-curso">{{ conteudoCurso().titulo }}</h1>
+          <p class="preservar-linhas">{{ conteudoCurso().descricao }}</p>
           <ul>
-            <li>Lavagem técnica e descontaminação da pintura</li>
-            <li>Higienização interna</li>
-            <li>Polimento e vitrificação de pintura</li>
-            <li>Restauração de faróis</li>
+            @for (topico of conteudoCurso().topicos; track $index) {
+              <li>{{ topico }}</li>
+            }
           </ul>
-          <p><a [href]="curso">Consultar valor e o que está incluso pelo WhatsApp</a></p>
+          <p><a [href]="curso">{{ conteudoCurso().chamada }}</a></p>
         </section>
       }
       @if (ocupado()) {
@@ -114,6 +198,31 @@
         <section class="catalogo" aria-label="Agenda indisponível">
           <button class="botao botao-secundario" type="button" (click)="carregarAgenda()">Tentar novamente</button>
           <p><a [href]="telaCurso ? curso : contato">Consultar disponibilidade pelo WhatsApp</a></p>
+        </section>
+      } @else if (telaTurma) {
+        <section class="catalogo trabalhos" aria-labelledby="titulo-turma">
+          <a href="./?tela=curso">Voltar às turmas</a>
+          @if (turmaPublica(); as turma) {
+            <article class="card card-texto turma-detalhes">
+              <h2 id="titulo-turma">Turma de {{ dataBr(turma.inicio) }}</h2>
+              <dl class="detalhes-turma">
+                <dt>Período</dt><dd>{{ dataBr(turma.inicio) }} a {{ dataBr(turma.fim) }}</dd>
+                <dt>Vagas</dt><dd>{{ turma.vagas > 0 ? turma.vagas + (turma.vagas === 1 ? ' vaga disponível' : ' vagas disponíveis') : 'Turma lotada' }}</dd>
+                @if (turma.detalhes.local) { <dt>Local</dt><dd>{{ turma.detalhes.local }}</dd> }
+                @if (turma.detalhes.valor !== undefined) { <dt>Valor</dt><dd>{{ reais.format(turma.detalhes.valor) }}</dd> }
+                @if (turma.detalhes.requisitos) { <dt>Pré-requisitos</dt><dd>{{ turma.detalhes.requisitos }}</dd> }
+                @if (turma.detalhes.inclusos) { <dt>O que está incluso</dt><dd>{{ turma.detalhes.inclusos }}</dd> }
+              </dl>
+              @if (turma.vagas > 0) {
+                <a class="botao" [href]="linkTurmaWhatsApp(turma.inicio)">Consultar vaga no WhatsApp</a>
+              } @else {
+                <aznom-interesse [id]="turma.id" [turma]="dataBr(turma.inicio) + ' a ' + dataBr(turma.fim)" (atualizar)="carregarAgenda()"></aznom-interesse>
+              }
+            </article>
+          } @else {
+            <h2 id="titulo-turma">Turma indisponível</h2>
+            <p>Confira as próximas datas na página do curso.</p>
+          }
         </section>
       } @else {
         <section class="catalogo" aria-labelledby="titulo-agenda">
@@ -130,9 +239,35 @@
             </div>
           }
 
+          <div class="calendario-publico" aria-label="Calendário mensal">
+            <div class="calendario-topo">
+              <button class="botao botao-secundario" type="button" (click)="moverMesAgenda(-1)">Mês anterior</button>
+              <h3 aria-live="polite">{{ rotuloMesAgenda() }}</h3>
+              <button class="botao botao-secundario" type="button" (click)="moverMesAgenda(1)">Próximo mês</button>
+            </div>
+            <div class="calendario-grade">
+              @for (semanaDia of ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']; track semanaDia) {
+                <span class="calendario-dia-semana">{{ semanaDia }}</span>
+              }
+              @for (dia of diasCalendario(); track $index) {
+                @if (dia) {
+                  <button type="button" class="calendario-dia" [attr.aria-pressed]="diaAgenda() === dia.data"
+                    [attr.aria-current]="dia.data === hojeAgenda ? 'date' : null"
+                    [attr.aria-label]="dataBr(dia.data) + ' · ' + dia.estado"
+                    [class.calendario-disponivel]="dia.estado === 'Disponível'"
+                    [class.calendario-espera]="dia.estado === 'Lista de espera'"
+                    (click)="escolherDiaAgenda(dia.data)">{{ dia.numero }}</button>
+                } @else { <span aria-hidden="true"></span> }
+              }
+            </div>
+            <p class="calendario-legenda"><span>Disponível</span>
+              @if (abaAgenda() === 'cursos') { <span>Lista de espera</span> }
+            </p>
+          </div>
+
           <div class="agenda-tabela">
             <table>
-              <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso de uma semana' }}</caption>
+              <caption>{{ abaAgenda() === 'servicos' ? 'Horários de atendimento' : 'Turmas do curso' }} · {{ dataBr(diaAgenda()) }}</caption>
               <thead>
                 <tr>
                   <th scope="col">{{ abaAgenda() === 'servicos' ? 'Data' : 'Início' }}</th>
@@ -154,27 +289,7 @@
                     @if (abaAgenda() === 'cursos') {
                       <td>{{ opcao.vagas > 0 ? opcao.vagas : 'Lotada' }}</td>
                       <td>
-                        @if (opcao.detalhes.valor !== undefined || opcao.detalhes.local || opcao.detalhes.requisitos || opcao.detalhes.inclusos) {
-                          <details>
-                            <summary>Ver detalhes</summary>
-                            <dl class="detalhes-turma">
-                              @if (opcao.detalhes.valor !== undefined) {
-                                <dt>Valor</dt><dd>{{ reais.format(opcao.detalhes.valor) }}</dd>
-                              }
-                              @if (opcao.detalhes.local) {
-                                <dt>Local</dt><dd>{{ opcao.detalhes.local }}</dd>
-                              }
-                              @if (opcao.detalhes.requisitos) {
-                                <dt>Pré-requisitos</dt><dd>{{ opcao.detalhes.requisitos }}</dd>
-                              }
-                              @if (opcao.detalhes.inclusos) {
-                                <dt>O que está incluso</dt><dd>{{ opcao.detalhes.inclusos }}</dd>
-                              }
-                            </dl>
-                          </details>
-                        } @else {
-                          <a [href]="curso">Consultar pelo WhatsApp</a>
-                        }
+                        <a [href]="'./?tela=turma&amp;id=' + opcao.id">Ver detalhes da turma</a>
                       </td>
                     }
                     <td>
@@ -193,7 +308,7 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td [attr.colspan]="abaAgenda() === 'cursos' ? 5 : 3">{{ abaAgenda() === 'servicos' ? 'Ainda não há horários publicados.' : 'Ainda não há turmas publicadas.' }}</td>
+                    <td [attr.colspan]="abaAgenda() === 'cursos' ? 5 : 3">{{ abaAgenda() === 'servicos' ? 'Sem horários disponíveis para este dia.' : 'Sem turmas publicadas para este dia.' }}</td>
                   </tr>
                 }
               </tbody>
@@ -220,7 +335,7 @@
       @if (abaAgenda() === 'servicos') {
         <section class="catalogo trabalhos" aria-labelledby="titulo-orcamento">
           <h2 id="titulo-orcamento">Pedir orçamento</h2>
-          <form class="form-conta" (submit)="solicitarOrcamento($event)">
+          <form #formOrcamento class="form-conta" (submit)="sessaoOrcamento() ? enviarOrcamento($event, formOrcamento, fotosPedido.files) : solicitarOrcamento($event)">
             <label>Serviço
               <input list="servicos-orcamento" maxlength="100" required [value]="servicoOrcamento()"
                 (input)="servicoOrcamento.set($any($event.target).value)">
@@ -234,144 +349,175 @@
               <input maxlength="100" required placeholder="Ex.: Fiat Argo" [value]="veiculoOrcamento()"
                 (input)="veiculoOrcamento.set($any($event.target).value)">
             </label>
-            <button class="botao" type="submit" [disabled]="!servicoOrcamento().trim() || !veiculoOrcamento().trim()">Enviar pedido pelo WhatsApp</button>
+            @if (sessaoOrcamento()) {
+              <label>Nome para contato <input name="cliente" autocomplete="name" maxlength="100" required></label>
+              <label>WhatsApp com DDD <input name="telefone" type="tel" autocomplete="tel" maxlength="25" required></label>
+            }
+            <label [hidden]="!sessaoOrcamento()">Fotos opcionais (até três, de até 1 MB cada)
+              <input #fotosPedido name="fotos" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+            </label>
+            <div class="acoes">
+              <button class="botao" type="submit" [disabled]="enviandoOrcamento() || !servicoOrcamento().trim() || !veiculoOrcamento().trim()">
+                {{ enviandoOrcamento() ? 'Enviando…' : sessaoOrcamento() ? 'Enviar pedido à AZNOM' : 'Pedir pelo WhatsApp' }}
+              </button>
+              @if (!sessaoOrcamento()) {
+                <a class="botao botao-secundario" [href]="entrarParaOrcamento()">Entrar para enviar fotos e acompanhar</a>
+              }
+            </div>
           </form>
+          @if (mensagemOrcamento()) { <p role="status">{{ mensagemOrcamento() }}</p> }
         </section>
       }
     } @else if (carregandoConta()) {
       <p class="catalogo" role="status">Verificando a sessão…</p>
     } @else if (!conta()) {
-      <section class="catalogo" aria-labelledby="titulo-conta">
-        <h1 id="titulo-conta">{{ cadastro() ? 'Criar conta' : 'Entrar na sua conta' }}</h1>
-        <p>Entre para consultar os horários dos serviços e as datas das turmas.</p>
-        <form class="form-conta" (submit)="autenticar($event, email.value, senha.value)">
-          <label>E-mail <input #email type="email" autocomplete="email" maxlength="254" required></label>
-          <label>Senha <input #senha type="password" [attr.autocomplete]="cadastro() ? 'new-password' : 'current-password'" minlength="10" maxlength="128" required></label>
-          <button class="botao" type="submit" [disabled]="ocupado()">{{ cadastro() ? 'Criar conta' : 'Entrar' }}</button>
-        </form>
-        <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="alternarCadastro()">
-          {{ cadastro() ? 'Já tenho conta' : 'Criar uma conta' }}
-        </button>
-        <a class="botao botao-secundario" href="/api/auth/google">Entrar com Google</a>
-        @if (mensagemGoogle) {
-          <p role="status">{{ mensagemGoogle }}</p>
-        }
-      </section>
-    } @else {
-      <section class="catalogo" aria-label="Minha conta">
-        <div class="acoes">
-          <a href="./?tela=agenda">Ver agenda</a>
-          @if (conta()?.papel === 'admin') {
-            <a href="./?tela=painel">Painel administrativo</a>
+      <section class="catalogo acesso-conta" aria-labelledby="titulo-conta">
+        <div class="acesso-card">
+          <h1 id="titulo-conta">{{ cadastro() ? 'Criar conta' : 'Entrar na sua conta' }}</h1>
+          <p>Entre para consultar os horários dos serviços e as datas das turmas.</p>
+          <form class="form-conta" (submit)="autenticar($event, email.value, senha.value)">
+            <label>E-mail <input #email type="email" autocomplete="email" maxlength="254" required></label>
+            <label>Senha <input #senha type="password" [attr.autocomplete]="cadastro() ? 'new-password' : 'current-password'" minlength="10" maxlength="128" required></label>
+            <button class="botao" type="submit" [disabled]="ocupado()">{{ cadastro() ? 'Criar conta' : 'Entrar' }}</button>
+          </form>
+          <div class="acesso-acoes">
+            <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="alternarCadastro()">
+              {{ cadastro() ? 'Já tenho conta' : 'Criar uma conta' }}
+            </button>
+            <a class="botao botao-secundario" href="/api/auth/google">Entrar com Google</a>
+          </div>
+          @if (mensagemGoogle) {
+            <p role="status">{{ mensagemGoogle }}</p>
           }
-          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || fotoServicoOcupada() || galeriaOcupada() || atendimentosOcupados() || depoimentosOcupados()" (click)="sair()">Sair</button>
+          @if (mensagem()) { <p class="estado-painel" role="status">{{ mensagem() }}</p> }
         </div>
       </section>
-      @if (telaPainel) {
-        @if (conta()?.papel === 'admin') {
-          <section class="catalogo" aria-labelledby="titulo-painel">
-            <h1 id="titulo-painel">Painel administrativo</h1>
-            <nav class="acoes" aria-label="Seções do painel">
-              <a href="#painel-resumo">Resumo do dia</a>
-              <a href="#painel-recebimentos">Recebimentos</a>
-              <a href="./?tela=painel#painel-catalogo">Catálogo de serviços</a>
-              <a href="./?tela=painel#painel-agenda">Agenda</a>
-              <a href="./?tela=painel#painel-orcamentos">Orçamentos</a>
-              <a href="./?tela=painel#painel-atendimentos">Atendimentos</a>
-              <a href="#painel-veiculos">Veículos</a>
-              <a href="#painel-matriculas">Matrículas</a>
-              <a href="./?tela=painel#painel-espera">Lista de espera</a>
-              <a href="./?tela=painel#painel-galeria">Galeria</a>
-              <a href="./?tela=painel#painel-depoimentos">Depoimentos</a>
-            </nav>
-          </section>
-          <section class="catalogo trabalhos" id="painel-resumo" aria-labelledby="titulo-resumo">
-            <aznom-resumo [revisao]="revisaoResumo()" (verAtendimento)="abrirAtendimento($event)"></aznom-resumo>
-          </section>
-          <section class="catalogo trabalhos" id="painel-recebimentos" aria-labelledby="titulo-recebimentos">
-            <aznom-resumo-mensal [revisao]="revisaoFinanceiro()"></aznom-resumo-mensal>
-          </section>
-          <section class="catalogo trabalhos" id="painel-catalogo" aria-labelledby="titulo-painel-catalogo">
-            <h2 id="titulo-painel-catalogo">Catálogo de serviços</h2>
-            <h3>{{ servicoEditando() ? 'Editar serviço' : 'Novo serviço' }}</h3>
-            <form #formServico class="form-conta" (submit)="salvarServico(formServico, $event)">
-              <label>Nome do serviço
-                <input name="nome" [value]="servicoEditando()?.nome ?? ''" maxlength="100" required>
-              </label>
-              <label>Descrição
-                <textarea name="descricao" [value]="servicoEditando()?.descricao ?? ''" rows="4" maxlength="1500" required></textarea>
-              </label>
-              <label>Mostrar no catálogo
-                <input type="checkbox" name="ativo" checked [checked]="servicoEditando()?.ativo ?? true">
-              </label>
-              <div class="acoes">
-                <button class="botao" type="submit" [disabled]="catalogoOcupado() || fotoServicoOcupada()">Salvar serviço</button>
-                @if (servicoEditando()) {
-                  <button class="botao botao-secundario" type="button" [disabled]="catalogoOcupado() || fotoServicoOcupada()"
-                    (click)="cancelarEdicaoServico(formServico)">Cancelar edição</button>
-                }
-              </div>
-            </form>
-            @if (servicoEditando(); as servico) {
-              <section class="editor-foto-servico" aria-labelledby="titulo-foto-servico">
-                <h3 id="titulo-foto-servico">Foto no carrossel</h3>
-                <img [src]="previaServico() ?? imagemServicoAdmin(servico)"
-                  (error)="usarImagemPadrao($event, servico.nome)" [alt]="'Prévia da foto de ' + servico.nome">
-                <label>Selecionar foto JPG, PNG ou WebP (até 3 MB)
-                  <input #arquivoServico id="arquivo-foto-servico" type="file" accept="image/jpeg,image/png,image/webp"
-                    [disabled]="fotoServicoOcupada() || catalogoOcupado()" (change)="selecionarFotoServico(arquivoServico)">
-                </label>
-                <div class="acoes">
-                  <button type="button" class="botao" [disabled]="!fotoServico() || fotoServicoOcupada() || catalogoOcupado()"
-                    (click)="atualizarFotoServico(false, arquivoServico)">Salvar foto</button>
-                  @if (servico.imagem_url) {
-                    <button type="button" class="botao botao-secundario" [disabled]="fotoServicoOcupada() || catalogoOcupado()"
-                      (click)="atualizarFotoServico(true, arquivoServico)">Usar imagem padrão</button>
-                  }
-                </div>
-                @if (mensagemFotoServico()) {
-                  <p role="status">{{ mensagemFotoServico() }}</p>
-                }
-              </section>
+    } @else {
+      <section class="catalogo sessao-conta" [class.pagina-conta]="telaConta" aria-label="Minha conta">
+        @if (telaConta) {
+          <div class="conta-cabecalho">
+            <div><h1>Minha conta</h1><p>{{ conta()?.email }}</p></div>
+          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || fotoServicoOcupada() || galeriaOcupada() || atendimentosOcupados() || depoimentosOcupados()" (click)="sair()">Sair</button>
+          </div>
+          @if (voltandoAoOrcamento) {
+            <a class="botao" [href]="voltarAoOrcamento()">Continuar orçamento</a>
+          }
+          <div class="conta-atalhos">
+            <a class="card card-texto" href="./?tela=agenda"><strong>Agenda</strong><span>Consulte horários de serviços e próximas turmas.</span></a>
+            <a class="card card-texto" href="./?tela=comentarios"><strong>Comentários</strong><span>Veja o que outros clientes disseram.</span></a>
+            @if (conta()?.papel === 'admin') {
+              <a class="card card-texto" href="./?tela=painel"><strong>Painel administrativo</strong><span>Gerencie serviços, cursos e conteúdo do site.</span></a>
             }
-            @if (mensagemCatalogo()) {
-              <p role="status">{{ mensagemCatalogo() }}</p>
-            }
-            @if (catalogoOcupado()) {
-              <p role="status">Atualizando catálogo…</p>
-            } @else {
+          </div>
+          <section aria-labelledby="titulo-meus-atendimentos">
+            <h2 id="titulo-meus-atendimentos">Meus atendimentos</h2>
+            @if (carregandoAtendimentosCliente()) {
+              <p role="status">Carregando seus atendimentos…</p>
+            } @else if (mensagemAtendimentosCliente()) {
+              <p role="status">{{ mensagemAtendimentosCliente() }}</p>
+              <button class="botao botao-secundario" type="button" (click)="carregarAtendimentosCliente()">Tentar novamente</button>
+            } @else if (atendimentosCliente(); as itens) {
               <div class="grade">
-                @for (servico of servicosAdmin(); track servico.id) {
-                  <article class="card card-texto">
-                    <img class="miniatura-servico" [src]="imagemServicoAdmin(servico)" alt="" loading="lazy"
-                      (error)="usarImagemPadrao($event, servico.nome)">
-                    <h3>{{ servico.nome }}</h3>
-                    <p>{{ servico.descricao }}</p>
-              @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
-                <figure>
-                  <blockquote>{{ item.texto }}</blockquote>
-                  <figcaption>{{ item.autor }}</figcaption>
-                </figure>
-              }
-                    <p>{{ servico.ativo ? 'Visível no catálogo' : 'Oculto no catálogo' }}</p>
-                    <button class="botao botao-secundario" type="button"
-                      [disabled]="fotoServicoOcupada()" (click)="editarServico(servico, formServico)">Editar serviço</button>
+                @for (item of itens; track item.id) {
+                  <article class="card card-texto atendimento-cliente" [id]="'ficha-' + item.id">
+                    <h3>{{ item.servico }}</h3>
+                    <p>{{ item.veiculo }} · {{ dataBr(item.data) }} às {{ item.hora }}</p>
+                    <p class="depoimento-estado">{{ item.status === 'cancelado' ? 'Cancelado' : item.status === 'concluido' ? 'Concluído' : etapasEntrega[item.andamento] }}</p>
+                    @if (item.previsao_entrega && item.status === 'confirmado') {
+                      <p>Previsão de retirada: {{ dataHoraEntrega(item.previsao_entrega) }}</p>
+                    }
+                    @if (item.status === 'concluido' || (item.status === 'confirmado' && item.andamento === 'pronto')) {
+                      @if (fichaCliente() === item.id) {
+                        <button class="botao botao-secundario" type="button" (click)="fichaCliente.set(null)">Fechar ficha de entrega</button>
+                      } @else {
+                        <a class="botao botao-secundario" [href]="'./?tela=conta&amp;ficha=' + item.id + '#ficha-' + item.id">Ficha de entrega</a>
+                      }
+                      @if (fichaCliente() === item.id) {
+                        <div class="ficha-cliente">
+                          @if (item.entregue_em) { <p>Entregue em {{ dataHoraEntrega(item.entregue_em) }}</p> }
+                          @if (item.servicos_realizados) { <h4>Serviços realizados</h4><p>{{ item.servicos_realizados }}</p> }
+                          @if (item.cuidados) { <h4>Cuidados recomendados</h4><p>{{ item.cuidados }}</p> }
+                          @if (item.retorno_sugerido) { <p>Retorno sugerido: {{ dataBr(item.retorno_sugerido) }}</p> }
+                          @for (etapa of item.fotos; track etapa) {
+                            <figure>
+                              <img [src]="'/api/conta/atendimentos/' + item.id + '/fotos/' + etapa" loading="lazy"
+                                [alt]="etapa === 'antes' ? 'Veículo antes do serviço' : 'Veículo após o serviço'">
+                              <figcaption>{{ etapa === 'antes' ? 'Antes' : 'Depois' }}</figcaption>
+                            </figure>
+                          }
+                          @if (!item.servicos_realizados && !item.cuidados && !item.retorno_sugerido && !item.fotos.length && !item.entregue_em) {
+                            <p>Os detalhes da entrega ainda não foram preenchidos.</p>
+                          }
+                        </div>
+                      }
+                    }
                   </article>
                 } @empty {
-                  @if (!mensagemCatalogo()) {
-                    <p>Nenhum serviço cadastrado.</p>
-                  }
+                  <p>Você ainda não tem atendimentos vinculados à sua conta.</p>
                 }
               </div>
             }
           </section>
-          <section class="catalogo trabalhos" id="painel-agenda" aria-labelledby="titulo-painel-agenda">
-            <h2 id="titulo-painel-agenda">Agenda</h2>
+
+        } @else {
+          <div class="acoes">
+            <a href="./?tela=conta">Minha conta</a>
+            <a href="./?tela=agenda">Ver agenda</a>
+          <button class="botao botao-secundario" type="button" [disabled]="ocupado() || catalogoOcupado() || fotoServicoOcupada() || galeriaOcupada() || atendimentosOcupados() || depoimentosOcupados()" (click)="sair()">Sair</button>
+          </div>
+        }
+      </section>
+      @if (telaPainel) {
+        @if (conta()?.papel === 'admin' && telaDepoimentos) {
+          <section class="catalogo pagina-depoimentos">
+            <a href="./?tela=painel#painel-depoimentos">Voltar ao painel</a>
+            <h1>Gerenciar depoimentos</h1>
+            <ng-container *ngTemplateOutlet="gestaoDepoimentos"></ng-container>
+          </section>
+        } @else if (conta()?.papel === 'admin') {
+          <div class="painel-layout">
+            <header class="painel-cabecalho">
+              <h1 id="titulo-painel">Painel administrativo</h1>
+              <p>Acompanhe os atendimentos, os recebimentos e o conteúdo do site.</p>
+            </header>
+            <nav class="painel-nav" aria-label="Seções do painel">
+              <div>
+                <strong>Visão geral</strong>
+                <a href="./?tela=painel#painel-resumo">Resumo do dia</a>
+                <a href="./?tela=painel#painel-recebimentos">Recebimentos</a>
+              </div>
+              <div>
+                <strong>Serviços</strong>
+                <a href="./?tela=painel#painel-agenda">Agenda de serviços</a>
+                <a href="./?tela=painel#painel-orcamentos">Orçamentos</a>
+                <a href="./?tela=painel#painel-atendimentos">Atendimentos</a>
+                <a href="./?tela=painel#painel-veiculos">Veículos</a>
+                <a href="./?tela=painel#painel-catalogo">Catálogo de serviços</a>
+              </div>
+              <div>
+                <strong>Cursos</strong>
+                <a href="./?tela=painel#painel-turmas">Agenda de turmas</a>
+                <a href="./?tela=painel#painel-matriculas">Matrículas</a>
+                <a href="./?tela=painel#painel-espera">Lista de espera</a>
+                <a href="./?tela=painel#painel-textos-curso">Textos do curso</a>
+              </div>
+              <div>
+                <strong>Conteúdo do site</strong>
+                <a href="./?tela=painel#painel-galeria">Galeria</a>
+                <a href="./?tela=painel#painel-depoimentos">Depoimentos</a>
+              </div>
+            </nav>
+            <div class="painel-conteudo">
+          <ng-template #agendaPainel let-tipoAgenda>
+            @let tipo = tipoAgenda === 'cursos' ? 'cursos' : 'servicos';
+          <section class="catalogo trabalhos agenda-admin" [id]="tipo === 'servicos' ? 'painel-agenda' : 'painel-turmas'">
+            <h2>{{ tipo === 'servicos' ? 'Agenda de serviços' : 'Agenda de turmas' }}</h2>
+            @if (tipo === 'servicos') {
             <h3>Visão semanal</h3>
             <div class="filtros-semana">
               <button class="botao botao-secundario" type="button" (click)="moverSemana(-7)">Semana anterior</button>
               <label>Data da semana
-                <input type="date" [value]="semana()" #dataEscolhida (change)="selecionarSemana(dataEscolhida.value)">
+                <input type="text" placeholder="DD/MM/AAAA" maxlength="10" [value]="dataBr(semana())" #dataEscolhida (input)="dataEscolhida.setCustomValidity('')" (change)="alterarDataSemana(dataEscolhida)">
               </label>
               <button class="botao botao-secundario" type="button" (click)="moverSemana(7)">Próxima semana</button>
               <label>Situação
@@ -380,7 +526,6 @@
                   <option value="livre">Sem reserva</option>
                   <option value="confirmado">Confirmados</option>
                   <option value="concluido">Concluídos</option>
-                  <option value="turma">Turmas</option>
                 </select>
               </label>
             </div>
@@ -392,7 +537,7 @@
             } @else {
               <div class="agenda-tabela">
                 <table>
-                  <caption>Atendimentos e turmas de {{ dataBr(semana()) }} a {{ dataBr(diasSemana()[6].data) }}</caption>
+                  <caption>Atendimentos de {{ dataBr(semana()) }} a {{ dataBr(diasSemana()[6].data) }}</caption>
                   <thead><tr><th scope="col">Dia</th><th scope="col">Agenda</th></tr></thead>
                   <tbody>
                     @for (dia of diasSemana(); track dia.data) {
@@ -401,9 +546,7 @@
                         <td>
                           @for (item of dia.itens; track item.id) {
                             <div class="linha-semana">
-                              @if (item.tipo === 'cursos') {
-                                <span>Turma · {{ dataBr(item.inicio) }} a {{ dataBr(item.fim!) }} · {{ item.capacidade - item.confirmadas }} vagas livres</span>
-                              } @else if (atendimentosPorHorario().get(item.id); as atendimento) {
+                              @if (atendimentosPorHorario().get(item.id); as atendimento) {
                                 <span>{{ item.hora }} · {{ atendimento.servico }} · {{ atendimento.cliente }} · {{ rotulosAtendimento[atendimento.status] }}</span>
                                 @if (atendimento.status === 'confirmado') {
                                   <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
@@ -423,19 +566,22 @@
                 </table>
               </div>
             }
-            <h2>{{ editando() ? 'Editar disponibilidade' : 'Nova disponibilidade' }}</h2>
+            } @else {
+              <p>Organize as datas, a capacidade e os detalhes das próximas turmas.</p>
+              <div class="acoes">
+                <a href="./?tela=painel#painel-matriculas">Ver matrículas</a>
+                <a href="./?tela=painel#painel-espera">Ver lista de espera</a>
+              </div>
+            }
+            <h3>{{ editando()?.tipo === tipo ? 'Editar disponibilidade' : tipo === 'servicos' ? 'Novo horário' : 'Nova turma' }}</h3>
             <form #formAgenda class="form-conta" (submit)="salvarItem($event, formAgenda)">
-              <label>Tipo
-                <select name="tipo" [value]="editando()?.tipo ?? 'servicos'">
-                  <option value="servicos">Atendimento</option>
-                  <option value="cursos">Turma</option>
-                </select>
-              </label>
-              <label>Data de início <input name="inicio" type="date" [value]="editando()?.inicio ?? ''" required></label>
-              <label>Hora do atendimento <input name="hora" type="time" [value]="editando()?.hora ?? ''"></label>
-              <label>Data de término da turma <input name="fim" type="date" [value]="editando()?.fim ?? ''"></label>
+              <input type="hidden" name="tipo" [value]="tipo">
+              <label>Data de início <input name="inicio" type="text" placeholder="DD/MM/AAAA" maxlength="10" required></label>
+              @if (tipo === 'servicos') {
+                <label>Hora do atendimento <input name="hora" type="time" required></label>
+              } @else {
+              <label>Data de término da turma <input name="fim" type="text" placeholder="DD/MM/AAAA" maxlength="10" required></label>
               <label>Capacidade da turma <input name="capacidade" type="number" min="1" max="1000" step="1" value="1" required></label>
-              <p>Para atendimentos, preencha a hora. Para turmas, preencha a data de término e o total de vagas.</p>
               <details>
                 <summary>Detalhes opcionais da turma</summary>
                 <div class="form-conta">
@@ -445,19 +591,20 @@
                   <label>O que está incluso <textarea name="inclusos" rows="2" maxlength="600"></textarea></label>
                 </div>
               </details>
+              }
               <div class="acoes">
                 <button class="botao" type="submit" [disabled]="ocupado()">Salvar</button>
-                @if (editando()) {
+                @if (editando()?.tipo === tipo) {
                   <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="cancelarEdicaoAgenda(formAgenda)">Cancelar edição</button>
                 }
               </div>
             </form>
-            <h2>Próximos horários e turmas</h2>
-            @if (mensagem()) {
+            <h3>{{ tipo === 'servicos' ? 'Próximos horários' : 'Próximas turmas' }}</h3>
+            @if (mensagem() && agendaOperacao() === tipo) {
               <p role="status">{{ mensagem() }}</p>
             }
             <div class="grade">
-              @for (item of agendaAdmin(); track item.id) {
+              @for (item of agendasPorTipo()[tipo]; track item.id) {
                 <article class="card card-texto">
                   <h3>{{ item.tipo === 'servicos' ? 'Atendimento' : 'Turma' }}</h3>
                   <p>{{ dataBr(item.inicio) }} {{ item.fim ? 'a ' + dataBr(item.fim) : 'às ' + item.hora }}</p>
@@ -472,14 +619,14 @@
                       }
                     } @else {
                       <button class="botao" type="button" [disabled]="ocupado() || item.confirmadas >= item.capacidade"
-                        (click)="alterarConfirmacoes(item, item.confirmadas + 1)">Confirmar uma vaga</button>
+                        (click)="agendaOperacao.set(tipo); alterarConfirmacoes(item, item.confirmadas + 1)">Confirmar uma vaga</button>
                     }
                     @if (item.confirmadas > item.matriculadas && !atendimentosPorHorario().has(item.id)) {
                       <button class="botao botao-secundario" type="button" [disabled]="ocupado()"
-                        (click)="alterarConfirmacoes(item, item.confirmadas - 1)">Desfazer confirmação</button>
+                        (click)="agendaOperacao.set(tipo); alterarConfirmacoes(item, item.confirmadas - 1)">Desfazer confirmação</button>
                     }
                     <button class="botao botao-secundario" type="button" [disabled]="ocupado() || atendimentosPorHorario().has(item.id)" (click)="editarDisponibilidade(item, formAgenda)">Editar disponibilidade</button>
-                    <button class="botao botao-secundario" type="button" [disabled]="ocupado() || item.confirmadas > 0" (click)="removerItem(item.id)">Remover</button>
+                    <button class="botao botao-secundario" type="button" [disabled]="ocupado() || item.confirmadas > 0" (click)="agendaOperacao.set(tipo); removerItem(item.id)">Remover</button>
                   </div>
                 </article>
               } @empty {
@@ -487,233 +634,318 @@
               }
             </div>
           </section>
-          <section class="catalogo trabalhos" id="painel-orcamentos" aria-labelledby="titulo-orcamentos">
-            <aznom-orcamentos [horarios]="horariosLivres()" (convertido)="aposConversao()"
-              (verAtendimento)="abrirAtendimento($event)" (alterado)="atualizarResumo()"></aznom-orcamentos>
+          </ng-template>
+          <section class="painel-area" aria-labelledby="area-visao-geral">
+            <h2 id="area-visao-geral" class="painel-area-titulo">Visão geral</h2>
+            <section class="catalogo trabalhos" id="painel-resumo" aria-labelledby="titulo-resumo">
+              <aznom-resumo [revisao]="revisaoResumo()" (verAtendimento)="abrirAtendimento($event)"></aznom-resumo>
+            </section>
+            <section class="catalogo trabalhos" id="painel-recebimentos" aria-labelledby="titulo-recebimentos">
+              <aznom-resumo-mensal [revisao]="revisaoFinanceiro()"></aznom-resumo-mensal>
+            </section>
           </section>
-          <section class="catalogo trabalhos" id="painel-veiculos" aria-labelledby="titulo-veiculos">
-            @if (mensagemVeiculos()) { <p role="status">{{ mensagemVeiculos() }}</p> }
-            <aznom-veiculos [itens]="veiculos()" (verHistorico)="verHistoricoVeiculo($event)"
-              (alterado)="carregarVeiculos(); carregarAtendimentos()"></aznom-veiculos>
-          </section>
-          <section class="catalogo trabalhos" id="painel-atendimentos" aria-labelledby="titulo-atendimentos">
-            <h2 id="titulo-atendimentos">Histórico de atendimentos</h2>
-            @if (veiculoFiltrado(); as veiculo) {
-              <div class="acoes">
-                <p>Histórico de {{ veiculo.modelo }} @if (veiculo.placa) { · {{ veiculo.placa }} }</p>
-                <button class="botao botao-secundario" type="button" (click)="veiculoHistorico.set(null)">Mostrar todos os veículos</button>
+          <section class="painel-area" aria-labelledby="area-servicos">
+            <h2 id="area-servicos" class="painel-area-titulo">Serviços</h2>
+            <ng-container *ngTemplateOutlet="agendaPainel; context: { $implicit: 'servicos' }"></ng-container>
+            <section class="catalogo trabalhos" id="painel-orcamentos" aria-labelledby="titulo-orcamentos">
+              <aznom-orcamentos [horarios]="horariosLivres()" (convertido)="aposConversao()"
+                (verAtendimento)="abrirAtendimento($event)" (alterado)="atualizarResumo()"></aznom-orcamentos>
+            </section>
+            <section class="catalogo trabalhos" id="painel-atendimentos" aria-labelledby="titulo-atendimentos">
+              <h2 id="titulo-atendimentos">Histórico de atendimentos</h2>
+              @if (veiculoFiltrado(); as veiculo) {
+                <div class="acoes">
+                  <p>Histórico de {{ veiculo.modelo }} @if (veiculo.placa) { · {{ veiculo.placa }} }</p>
+                  <button class="botao botao-secundario" type="button" (click)="veiculoHistorico.set(null)">Mostrar todos os veículos</button>
+                </div>
+              }
+              <div class="form-conta">
+                <label>Buscar por cliente, modelo ou placa
+                  <input type="search" [value]="filtroAtendimento()" (input)="filtroAtendimento.set($any($event.target).value)">
+                </label>
               </div>
-            }
-            <div class="form-conta">
-              <label>Buscar por cliente, modelo ou placa
-                <input type="search" [value]="filtroAtendimento()" (input)="filtroAtendimento.set($any($event.target).value)">
-              </label>
-            </div>
-            <div [hidden]="!horarioAtendimento()">
-              <form #formAtendimento class="form-conta" (submit)="registrarAtendimento($event, formAtendimento)">
-                @if (horarioAtendimento(); as horario) {
-                  <h3>Confirmar atendimento em {{ dataBr(horario.inicio) }} às {{ horario.hora }}</h3>
-                }
-                <label>Nome do cliente <input name="cliente" maxlength="100" required></label>
-                <label>WhatsApp com DDD <input name="telefone" type="tel" maxlength="25"></label>
-                <label>Modelo do veículo <input name="veiculo" maxlength="100" required></label>
-                <label>Serviço <input name="servico" list="servicos-atendimento" maxlength="100" required></label>
-                <datalist id="servicos-atendimento">
-                  @for (servico of servicosAdmin(); track servico.id) {
-                    <option [value]="servico.nome"></option>
+              <div [hidden]="!horarioAtendimento()">
+                <form #formAtendimento class="form-conta" (submit)="registrarAtendimento($event, formAtendimento)">
+                  @if (horarioAtendimento(); as horario) {
+                    <h3>Confirmar atendimento em {{ dataBr(horario.inicio) }} às {{ horario.hora }}</h3>
                   }
-                </datalist>
-                <div class="acoes">
-                  <button class="botao" type="submit" [disabled]="atendimentosOcupados()">Confirmar atendimento</button>
-                  <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
-                    (click)="horarioAtendimento.set(null)">Fechar formulário</button>
-                </div>
-              </form>
-            </div>
-            @if (mensagemAtendimento()) {
-              <p role="status">{{ mensagemAtendimento() }}</p>
-            }
-            @if (reagendando(); as item) {
-              <form id="form-reagendar" #formReagendar class="form-conta" (submit)="reagendar($event, item, formReagendar)">
-                <h3>Reagendar atendimento de {{ item.cliente }}</h3>
-                <p>Horário atual: {{ dataBr(item.data) }} às {{ item.hora }}.</p>
-                @if (horariosLivres().length) {
-                  <label>Novo horário
-                    <select name="novoHorario" required>
-                      <option value="">Selecione um horário</option>
-                      @for (horario of horariosLivres(); track horario.id) {
-                        <option [value]="horario.id">{{ dataBr(horario.inicio) }} às {{ horario.hora }}</option>
-                      }
-                    </select>
-                  </label>
-                }
-                <div class="acoes">
+                  <label>Nome do cliente <input name="cliente" maxlength="100" required></label>
+                  <label>WhatsApp com DDD <input name="telefone" type="tel" maxlength="25"></label>
+                  <label>Modelo do veículo <input name="veiculo" maxlength="100" required></label>
+                  <label>Serviço <input name="servico" list="servicos-atendimento" maxlength="100" required></label>
+                  <datalist id="servicos-atendimento">
+                    @for (servico of servicosAdmin(); track servico.id) {
+                      <option [value]="servico.nome"></option>
+                    }
+                  </datalist>
+                  <div class="acoes">
+                    <button class="botao" type="submit" [disabled]="atendimentosOcupados()">Confirmar atendimento</button>
+                    <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                      (click)="horarioAtendimento.set(null)">Fechar formulário</button>
+                  </div>
+                </form>
+              </div>
+              @if (mensagemAtendimento()) {
+                <p role="status">{{ mensagemAtendimento() }}</p>
+              }
+              @if (reagendando(); as item) {
+                <form id="form-reagendar" #formReagendar class="form-conta" (submit)="reagendar($event, item, formReagendar)">
+                  <h3>Reagendar atendimento de {{ item.cliente }}</h3>
+                  <p>Horário atual: {{ dataBr(item.data) }} às {{ item.hora }}.</p>
                   @if (horariosLivres().length) {
-                    <button class="botao" type="submit" [disabled]="atendimentosOcupados()">Confirmar reagendamento</button>
-                  } @else {
-                    <p>Nenhum horário livre. Cadastre uma disponibilidade na agenda.</p>
-                  }
-                  <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()" (click)="reagendando.set(null)">Fechar reagendamento</button>
-                </div>
-              </form>
-            }
-            <div class="grade">
-              @for (item of atendimentosFiltrados(); track item.id) {
-                <article class="card card-texto" [id]="'atendimento-' + item.id">
-                  <h3>{{ item.servico }}</h3>
-                  <p>{{ dataBr(item.data) }} às {{ item.hora }} · {{ rotulosAtendimento[item.status] }}</p>
-                  <p>{{ item.cliente }} · {{ item.modelo_cadastrado ?? item.veiculo }} @if (item.placa) { · {{ item.placa }} }</p>
-                  @if (item.status === 'confirmado') {
-                    <p>{{ etapasEntrega[item.andamento] }}
-                      @if (item.previsao_entrega) { · Previsão de retirada: {{ dataHoraEntrega(item.previsao_entrega) }} }
-                    </p>
-                  } @else if (item.entregue_em) {
-                    <p>Entregue em {{ dataHoraEntrega(item.entregue_em) }}</p>
-                  }
-                  @if (item.reagendamentos.length) {
-                    <details>
-                      <summary>Histórico de reagendamentos</summary>
-                      <ul>
-                        @for (mudanca of item.reagendamentos; track $index) {
-                          <li>De {{ rotuloDataHora(mudanca.anterior) }} para {{ rotuloDataHora(mudanca.novo) }}</li>
+                    <label>Novo horário
+                      <select name="novoHorario" required>
+                        <option value="">Selecione um horário</option>
+                        @for (horario of horariosLivres(); track horario.id) {
+                          <option [value]="horario.id">{{ dataBr(horario.inicio) }} às {{ horario.hora }}</option>
                         }
-                      </ul>
-                    </details>
+                      </select>
+                    </label>
                   }
                   <div class="acoes">
-                    <button class="botao botao-secundario" type="button" [attr.aria-expanded]="fichaSelecionada() === item.id"
-                      (click)="fichaSelecionada.set(fichaSelecionada() === item.id ? null : item.id)">
-                      {{ fichaSelecionada() === item.id ? 'Fechar ficha' : 'Abrir ficha do veículo' }}
-                    </button>
-                    @if (item.telefone && item.status === 'confirmado') {
-                      <a class="botao botao-secundario" [href]="mensagemCliente(item, 'confirmacao')" target="_blank" rel="noopener">Preparar confirmação</a>
-                      <a class="botao botao-secundario" [href]="mensagemCliente(item, 'lembrete')" target="_blank" rel="noopener">Preparar lembrete</a>
-                      @if (item.andamento === 'pronto') {
-                        <a class="botao botao-secundario" [href]="mensagemCliente(item, 'retirada')" target="_blank" rel="noopener">Preparar aviso de retirada</a>
+                    @if (horariosLivres().length) {
+                      <button class="botao" type="submit" [disabled]="atendimentosOcupados()">Confirmar reagendamento</button>
+                    } @else {
+                      <p>Nenhum horário livre. Cadastre uma disponibilidade na agenda.</p>
+                    }
+                    <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()" (click)="reagendando.set(null)">Fechar reagendamento</button>
+                  </div>
+                </form>
+              }
+              <div class="grade">
+                @for (item of atendimentosFiltrados(); track item.id) {
+                  <article class="card card-texto" [id]="'atendimento-' + item.id">
+                    <h3>{{ item.servico }}</h3>
+                    <p>{{ dataBr(item.data) }} às {{ item.hora }} · {{ rotulosAtendimento[item.status] }}</p>
+                    <p>{{ item.cliente }} · {{ item.modelo_cadastrado ?? item.veiculo }} @if (item.placa) { · {{ item.placa }} }</p>
+                    @if (item.status === 'confirmado') {
+                      <p>{{ etapasEntrega[item.andamento] }}
+                        @if (item.previsao_entrega) { · Previsão de retirada: {{ dataHoraEntrega(item.previsao_entrega) }} }
+                      </p>
+                    } @else if (item.entregue_em) {
+                      <p>Entregue em {{ dataHoraEntrega(item.entregue_em) }}</p>
+                    }
+                    @if (item.reagendamentos.length) {
+                      <details>
+                        <summary>Histórico de reagendamentos</summary>
+                        <ul>
+                          @for (mudanca of item.reagendamentos; track $index) {
+                            <li>De {{ rotuloDataHora(mudanca.anterior) }} para {{ rotuloDataHora(mudanca.novo) }}</li>
+                          }
+                        </ul>
+                      </details>
+                    }
+                    <div class="acoes">
+                      <button class="botao botao-secundario" type="button" [attr.aria-expanded]="fichaSelecionada() === item.id"
+                        (click)="fichaSelecionada.set(fichaSelecionada() === item.id ? null : item.id)">
+                        {{ fichaSelecionada() === item.id ? 'Fechar ficha' : 'Abrir ficha do veículo' }}
+                      </button>
+                      @if (item.telefone && item.status === 'confirmado') {
+                        <a class="botao botao-secundario" [href]="mensagemCliente(item, 'confirmacao')" target="_blank" rel="noopener">Preparar confirmação</a>
+                        <a class="botao botao-secundario" [href]="mensagemCliente(item, 'lembrete')" target="_blank" rel="noopener">Preparar lembrete</a>
+                        @if (item.andamento === 'pronto') {
+                          <a class="botao botao-secundario" [href]="mensagemCliente(item, 'retirada')" target="_blank" rel="noopener">Preparar aviso de retirada</a>
+                        }
+                        @if (item.reagendamentos.length) {
+                          <a class="botao botao-secundario" [href]="mensagemCliente(item, 'reagendamento')" target="_blank" rel="noopener">Preparar aviso de reagendamento</a>
+                        }
                       }
-                      @if (item.reagendamentos.length) {
-                        <a class="botao botao-secundario" [href]="mensagemCliente(item, 'reagendamento')" target="_blank" rel="noopener">Preparar aviso de reagendamento</a>
-                      }
+                    </div>
+                    @if (fichaSelecionada() === item.id) {
+                      <aznom-ficha-veiculo [item]="item" [veiculos]="veiculos()" (atualizada)="carregarAtendimentos()"
+                        (veiculoAlterado)="carregarVeiculos()" (verHistorico)="verHistoricoVeiculo($event)"></aznom-ficha-veiculo>
+                    }
+                    @if (item.status === 'confirmado') {
+                      <div class="acoes">
+                        <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                          (click)="iniciarReagendamento(item)">Reagendar</button>
+                        <button class="botao" type="button" [disabled]="atendimentosOcupados()"
+                          (click)="atualizarAtendimento(item, 'concluido')">Marcar como entregue</button>
+                        <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
+                          (click)="atualizarAtendimento(item, 'cancelado')">Cancelar atendimento</button>
+                      </div>
+                    }
+                  </article>
+                } @empty {
+                  @if (atendimentosOcupados()) {
+                    <p role="status">Carregando atendimentos…</p>
+                  } @else if (!mensagemAtendimento()) {
+                    <p>{{ (filtroAtendimento() || veiculoHistorico()) ? 'Nenhum atendimento corresponde à busca.' : 'Nenhum atendimento registrado.' }}</p>
+                  }
+                }
+              </div>
+            </section>
+            <section class="catalogo trabalhos" id="painel-veiculos" aria-labelledby="titulo-veiculos">
+              @if (mensagemVeiculos()) { <p role="status">{{ mensagemVeiculos() }}</p> }
+              <aznom-veiculos [itens]="veiculos()" (verHistorico)="verHistoricoVeiculo($event)"
+                (alterado)="carregarVeiculos(); carregarAtendimentos()"></aznom-veiculos>
+            </section>
+            <section class="catalogo trabalhos" id="painel-catalogo" aria-labelledby="titulo-painel-catalogo">
+              <h2 id="titulo-painel-catalogo">Catálogo de serviços</h2>
+              <h3>{{ servicoEditando() ? 'Editar serviço' : 'Novo serviço' }}</h3>
+              <form #formServico class="form-conta" (submit)="salvarServico(formServico, $event)">
+                <label>Nome do serviço
+                  <input name="nome" [value]="servicoEditando()?.nome ?? ''" maxlength="100" required>
+                </label>
+                <label>Descrição
+                  <textarea name="descricao" [value]="servicoEditando()?.descricao ?? ''" rows="4" maxlength="1500" required></textarea>
+                </label>
+                <label>Mostrar no catálogo
+                  <input type="checkbox" name="ativo" checked [checked]="servicoEditando()?.ativo ?? true">
+                </label>
+                <div class="acoes">
+                  <button class="botao" type="submit" [disabled]="catalogoOcupado() || fotoServicoOcupada()">Salvar serviço</button>
+                  @if (servicoEditando()) {
+                    <button class="botao botao-secundario" type="button" [disabled]="catalogoOcupado() || fotoServicoOcupada()"
+                      (click)="cancelarEdicaoServico(formServico)">Cancelar edição</button>
+                  }
+                </div>
+              </form>
+              @if (servicoEditando(); as servico) {
+                <section class="editor-foto-servico" aria-labelledby="titulo-foto-servico">
+                  <h3 id="titulo-foto-servico">Foto no carrossel</h3>
+                  <img [src]="previaServico() ?? imagemServicoAdmin(servico)"
+                    (error)="usarImagemPadrao($event, servico.nome)" [alt]="'Prévia da foto de ' + servico.nome">
+                  <label>Selecionar foto JPG, PNG ou WebP (até 3 MB)
+                    <input #arquivoServico id="arquivo-foto-servico" type="file" accept="image/jpeg,image/png,image/webp"
+                      [disabled]="fotoServicoOcupada() || catalogoOcupado()" (change)="selecionarFotoServico(arquivoServico)">
+                  </label>
+                  <div class="acoes">
+                    <button type="button" class="botao" [disabled]="!fotoServico() || fotoServicoOcupada() || catalogoOcupado()"
+                      (click)="atualizarFotoServico(false, arquivoServico)">Salvar foto</button>
+                    @if (servico.imagem_url) {
+                      <button type="button" class="botao botao-secundario" [disabled]="fotoServicoOcupada() || catalogoOcupado()"
+                        (click)="atualizarFotoServico(true, arquivoServico)">Usar imagem padrão</button>
                     }
                   </div>
-                  @if (fichaSelecionada() === item.id) {
-                    <aznom-ficha-veiculo [item]="item" [veiculos]="veiculos()" (atualizada)="carregarAtendimentos()"
-                      (veiculoAlterado)="carregarVeiculos()" (verHistorico)="verHistoricoVeiculo($event)"></aznom-ficha-veiculo>
+                  @if (mensagemFotoServico()) {
+                    <p role="status">{{ mensagemFotoServico() }}</p>
                   }
-                  @if (item.status === 'confirmado') {
-                    <div class="acoes">
-                      <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
-                        (click)="iniciarReagendamento(item)">Reagendar</button>
-                      <button class="botao" type="button" [disabled]="atendimentosOcupados()"
-                        (click)="atualizarAtendimento(item, 'concluido')">Marcar como entregue</button>
-                      <button class="botao botao-secundario" type="button" [disabled]="atendimentosOcupados()"
-                        (click)="atualizarAtendimento(item, 'cancelado')">Cancelar atendimento</button>
-                    </div>
-                  }
-                </article>
-              } @empty {
-                @if (atendimentosOcupados()) {
-                  <p role="status">Carregando atendimentos…</p>
-                } @else if (!mensagemAtendimento()) {
-                  <p>{{ (filtroAtendimento() || veiculoHistorico()) ? 'Nenhum atendimento corresponde à busca.' : 'Nenhum atendimento registrado.' }}</p>
+                </section>
+              }
+              @if (mensagemCatalogo()) {
+                <p role="status">{{ mensagemCatalogo() }}</p>
+              }
+              @if (catalogoOcupado()) {
+                <p role="status">Atualizando catálogo…</p>
+              } @else {
+                <div class="grade">
+                  @for (servico of servicosAdmin(); track servico.id) {
+                    <article class="card card-texto">
+                      <img class="miniatura-servico" [src]="imagemServicoAdmin(servico)" alt="" loading="lazy"
+                        (error)="usarImagemPadrao($event, servico.nome)">
+                      <h3>{{ servico.nome }}</h3>
+                      <p>{{ servico.descricao }}</p>
+                @for (item of depoimentosPorServico().get(servico.nome) ?? []; track item.id) {
+                  <figure>
+                    <blockquote>{{ item.texto }}</blockquote>
+                    <figcaption>{{ item.autor }}</figcaption>
+                  </figure>
                 }
+                      <p>{{ servico.ativo ? 'Visível no catálogo' : 'Oculto no catálogo' }}</p>
+                      <button class="botao botao-secundario" type="button"
+                        [disabled]="fotoServicoOcupada()" (click)="editarServico(servico, formServico)">Editar serviço</button>
+                    </article>
+                  } @empty {
+                    @if (!mensagemCatalogo()) {
+                      <p>Nenhum serviço cadastrado.</p>
+                    }
+                  }
+                </div>
               }
-            </div>
+            </section>
           </section>
-          <section class="catalogo trabalhos" id="painel-espera" aria-labelledby="titulo-espera">
-            <aznom-lista-espera [revisao]="agendaAdmin()" (matriculaAlterada)="matriculaAlterada()"></aznom-lista-espera>
-          </section>
-          <section class="catalogo trabalhos" id="painel-matriculas" aria-labelledby="titulo-matriculas">
-            <aznom-matriculas [revisao]="revisaoMatriculas()" [turmas]="turmasAbertas()"
-              (alterada)="matriculaAlterada()" (pagamentoAlterado)="atualizarFinanceiro()"></aznom-matriculas>
-          </section>
-          <section class="catalogo trabalhos" id="painel-galeria" aria-labelledby="titulo-painel-galeria">
-            <h2 id="titulo-painel-galeria">Galeria</h2>
-            <h3>{{ fotoEditando() ? 'Editar foto' : 'Nova foto' }}</h3>
-            <form #formFoto class="form-conta" (submit)="enviarFoto($event, legendaFoto.value, arquivoFoto.files?.item(0) ?? undefined)">
-              <label>Legenda da foto
-                <input #legendaFoto maxlength="100" required>
-              </label>
-              <label>Foto (JPG, PNG ou WebP de até 3 MB)
-                <input #arquivoFoto type="file" accept="image/jpeg,image/png,image/webp" [required]="!fotoEditando()">
-              </label>
-              @if (fotoEditando()) {
-                <p>Para alterar apenas a legenda, deixe o campo de arquivo vazio.</p>
+          <section class="painel-area" aria-labelledby="area-cursos">
+            <h2 id="area-cursos" class="painel-area-titulo">Cursos</h2>
+            <ng-container *ngTemplateOutlet="agendaPainel; context: { $implicit: 'cursos' }"></ng-container>
+            <section class="catalogo trabalhos" id="painel-matriculas" aria-labelledby="titulo-matriculas">
+              <aznom-matriculas [revisao]="revisaoMatriculas()" [turmas]="turmasAbertas()"
+                (alterada)="matriculaAlterada()" (pagamentoAlterado)="atualizarFinanceiro()"></aznom-matriculas>
+            </section>
+            <section class="catalogo trabalhos" id="painel-espera" aria-labelledby="titulo-espera">
+              <aznom-lista-espera [revisao]="agendaAdmin()" (matriculaAlterada)="matriculaAlterada()"></aznom-lista-espera>
+            </section>
+            <section class="catalogo trabalhos" id="painel-textos-curso" aria-labelledby="titulo-textos-curso">
+              <h2 id="titulo-textos-curso">Textos do curso</h2>
+              @if (conteudoCursoCarregado()) {
+                <form #formCurso class="form-conta" (submit)="salvarConteudoCurso($event, formCurso)">
+                  <label>Título <input name="titulo" [value]="conteudoCurso().titulo" maxlength="120" required></label>
+                  <label>Descrição <textarea name="descricao" [value]="conteudoCurso().descricao" rows="4" maxlength="1500" required></textarea></label>
+                  <label>Conteúdo do curso (um tópico por linha)
+                    <textarea name="topicos" [value]="conteudoCurso().topicos.join('\n')" rows="6" maxlength="2171" required></textarea>
+                  </label>
+                  <label>Texto do link de WhatsApp <input name="chamada" [value]="conteudoCurso().chamada" maxlength="120" required></label>
+                  <button class="botao" type="submit" [disabled]="conteudoCursoOcupado()">Salvar textos do curso</button>
+                </form>
+              } @else if (conteudoCursoOcupado()) {
+                <p role="status">Carregando textos do curso…</p>
+              } @else {
+                <button class="botao botao-secundario" type="button" (click)="carregarConteudoCurso()">Tentar novamente</button>
               }
-              <div class="acoes">
-                <button class="botao" type="submit" [disabled]="galeriaOcupada()">
-                  {{ galeriaOcupada() ? 'Aguarde…' : fotoEditando() ? 'Salvar alterações' : 'Publicar foto' }}
-                </button>
+              @if (mensagemCurso()) { <p role="status">{{ mensagemCurso() }}</p> }
+            </section>
+          </section>
+          <section class="painel-area" aria-labelledby="area-conteudo">
+            <h2 id="area-conteudo" class="painel-area-titulo">Conteúdo do site</h2>
+            <section class="catalogo trabalhos" id="painel-galeria" aria-labelledby="titulo-painel-galeria">
+              <div class="painel-secao-topo">
+                <h2 id="titulo-painel-galeria">Galeria</h2>
+                <a class="botao botao-secundario" href="./?tela=galeria" target="_blank" rel="noopener"
+                  aria-label="Abrir galeria em nova aba">Abrir galeria</a>
+              </div>
+              <h3>{{ fotoEditando() ? 'Editar foto' : 'Nova foto' }}</h3>
+              <form #formFoto class="form-conta" (submit)="enviarFoto($event, legendaFoto.value, arquivoFoto.files?.item(0) ?? undefined)">
+                <label>Legenda da foto
+                  <input #legendaFoto maxlength="100" required>
+                </label>
+                <label>Foto (JPG, PNG ou WebP de até 3 MB)
+                  <input #arquivoFoto type="file" accept="image/jpeg,image/png,image/webp" [required]="!fotoEditando()">
+                </label>
                 @if (fotoEditando()) {
-                  <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada()"
-                    (click)="cancelarEdicaoFoto(formFoto)">Cancelar edição</button>
+                  <p>Para alterar apenas a legenda, deixe o campo de arquivo vazio.</p>
                 }
-              </div>
-            </form>
-            @if (mensagemGaleria()) {
-              <p role="status">{{ mensagemGaleria() }}</p>
-            }
-            <div class="grade">
-              @for (foto of fotosGaleria(); track foto.id) {
-                <article class="card">
-                  <img [src]="'/api/galeria/' + foto.id + '?v=' + versaoFotos()" [alt]="foto.legenda" loading="lazy">
-                  <div class="card-texto">
-                    <h3>{{ foto.legenda }}</h3>
-                    <div class="acoes">
-                      <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada()"
-                        (click)="editarFoto(foto, legendaFoto, arquivoFoto)">Editar foto</button>
-                      <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada() || !!fotoEditando()"
-                        (click)="removerFoto(foto.id)">Remover foto</button>
+                <div class="acoes">
+                  <button class="botao" type="submit" [disabled]="galeriaOcupada()">
+                    {{ galeriaOcupada() ? 'Aguarde…' : fotoEditando() ? 'Salvar alterações' : 'Publicar foto' }}
+                  </button>
+                  @if (fotoEditando()) {
+                    <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada()"
+                      (click)="cancelarEdicaoFoto(formFoto)">Cancelar edição</button>
+                  }
+                </div>
+              </form>
+              @if (mensagemGaleria()) {
+                <p role="status">{{ mensagemGaleria() }}</p>
+              }
+              <div class="grade">
+                @for (foto of fotosGaleria(); track foto.id) {
+                  <article class="card">
+                    <div class="card-texto">
+                      <h3>{{ foto.legenda }}</h3>
+                      <div class="acoes">
+                        <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada()"
+                          (click)="editarFoto(foto, legendaFoto, arquivoFoto)">Editar foto</button>
+                        <button class="botao botao-secundario" type="button" [disabled]="galeriaOcupada() || !!fotoEditando()"
+                          (click)="removerFoto(foto.id)">Remover foto</button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              }
-            </div>
-          </section>
-          <section class="catalogo trabalhos" id="painel-depoimentos" aria-labelledby="titulo-depoimentos-admin">
-            <h2 id="titulo-depoimentos-admin">Depoimentos</h2>
-            <form #formDepoimento class="form-conta" (submit)="salvarDepoimento($event, formDepoimento)">
-              <h3>{{ depoimentoEditando() ? 'Editar depoimento' : 'Novo depoimento' }}</h3>
-              <label>Nome a exibir <input name="autor" maxlength="80" required></label>
-              <label>Serviço
-                <input name="servico" list="servicos-atendimento" maxlength="100" required>
-              </label>
-              <label>Depoimento <textarea name="texto" rows="4" maxlength="600" required></textarea></label>
-              <label><input type="checkbox" name="publicado"> Exibir no site</label>
-              <label><input type="checkbox" name="autorizado"> O cliente autorizou publicar este texto com o nome acima</label>
-              <div class="acoes">
-                <button class="botao" type="submit" [disabled]="depoimentosOcupados()">Salvar depoimento</button>
-                @if (depoimentoEditando()) {
-                  <button class="botao botao-secundario" type="button" [disabled]="depoimentosOcupados()"
-                    (click)="depoimentoEditando.set(null); formDepoimento.reset()">Cancelar edição</button>
+                  </article>
                 }
               </div>
-            </form>
-            @if (mensagemDepoimento()) {
-              <p role="status">{{ mensagemDepoimento() }}</p>
-            }
-            <div class="grade">
-              @for (item of depoimentos(); track item.id) {
-                <article class="card card-texto">
-                  <h3>{{ item.autor }} · {{ item.servico }}</h3>
-                  <blockquote>{{ item.texto }}</blockquote>
-                  <p>{{ item.publicado ? 'Publicado' : 'Rascunho' }}</p>
-                  <button class="botao botao-secundario" type="button" [disabled]="depoimentosOcupados()"
-                    (click)="iniciarDepoimento(item, formDepoimento)">Editar depoimento</button>
-                </article>
-              } @empty {
-                @if (!depoimentosOcupados() && !mensagemDepoimento()) {
-                  <p>Nenhum depoimento cadastrado.</p>
-                }
-              }
-            </div>
+            </section>
+            <section class="catalogo trabalhos" id="painel-depoimentos" aria-labelledby="titulo-depoimentos-admin">
+              <h2 id="titulo-depoimentos-admin">Depoimentos</h2>
+              <ng-container *ngTemplateOutlet="gestaoDepoimentos"></ng-container>
+            </section>
           </section>
+            </div>
+          </div>
         } @else {
           <p class="catalogo">O painel é exclusivo do administrador.</p>
         }
       }
     }
-    @if (mensagem() && !(telaPainel && conta()?.papel === 'admin')) {
+    @if (mensagem() && (telaAgenda || conta() || carregandoConta()) && !(telaPainel && conta()?.papel === 'admin')) {
       <p class="catalogo" role="status">{{ mensagem() }}</p>
     }
   </main>
@@ -725,6 +957,7 @@
       <a href="./?tela=galeria">Galeria</a>
       <a href="./?tela=agenda">Agenda</a>
       <a href="./?tela=curso">Curso</a>
+      <a href="#comentarios" (click)="menuAberto.set(false)">Comentários</a>
       <a href="#contato" (click)="menuAberto.set(false)">Contato</a>
     </nav>
     <div class="barra-acoes">
@@ -736,7 +969,7 @@
   </header>
 
   <main class="inicio">
-    <section class="abertura abertura-editorial" aria-labelledby="titulo">
+    <section class="abertura abertura-editorial abertura-estudio" aria-labelledby="titulo">
       <img class="logo-principal abertura-monza" src="imagens/monza-logo.webp"
         width="1774" height="887" fetchpriority="high" alt="Logo da AZNOM CAR DETAIL com a ilustração do Monza branco">
       <div class="abertura-conteudo">
@@ -745,8 +978,28 @@
         <div class="acoes">
           <a class="botao" [href]="linkOrcamento()">Pedir orçamento</a>
           <a class="botao botao-secundario" href="#servicos">Explorar serviços</a>
+          <a class="botao botao-secundario" href="./?tela=curso">Conhecer o curso</a>
         </div>
       </div>
+    </section>
+
+    <section class="catalogo vitrine" aria-labelledby="titulo-vitrine">
+      <div class="cabecalho-secao">
+        <div>
+          <h2 id="titulo-vitrine">Cada detalhe conta</h2>
+          <p>Veja opções de cuidado para a pintura, o interior e a carroceria.</p>
+        </div>
+        <a class="botao botao-secundario" href="./?tela=galeria">Abrir galeria</a>
+      </div>
+      <div class="vitrine-grade">
+        @for (destaque of destaquesInicio; track destaque.imagem) {
+          <a class="vitrine-card" [href]="linkOrcamento(destaque.servico)">
+            <img [src]="'imagens/' + destaque.imagem + '.webp'" alt="" width="1440" height="810" loading="lazy">
+            <div><h3>{{ destaque.titulo }}</h3><span>Pedir orçamento</span></div>
+          </a>
+        }
+      </div>
+      <p class="vitrine-nota">Imagens ilustrativas. Veja os resultados reais na seção de antes e depois.</p>
     </section>
 
     <section class="catalogo catalogo-editorial" id="servicos" aria-labelledby="titulo-servicos">
@@ -848,6 +1101,29 @@
         <p>Uma semana para conhecer as etapas dos principais serviços, da lavagem à proteção da pintura.</p>
         <a class="botao botao-secundario" href="./?tela=curso">Ver próximas turmas</a>
       </div>
+    </section>
+
+    <section class="catalogo trabalhos" id="comentarios" aria-labelledby="titulo-comentarios">
+      <div class="comentarios-intro">
+        <h2 id="titulo-comentarios">Comentários</h2>
+        @if (depoimentosCarregados()) {
+          <p>{{ depoimentos().length }} {{ depoimentos().length === 1 ? 'comentário publicado' : 'comentários publicados' }}</p>
+        } @else if (depoimentosOcupados()) {
+          <p role="status">Carregando comentários…</p>
+        }
+        <a class="botao botao-secundario" href="./?tela=comentarios">Ver comentários</a>
+      </div>
+      <form #formComentario class="form-conta comentario-form" (submit)="enviarComentario($event, formComentario)">
+        <h3>Deixe seu comentário</h3>
+        <label>Nome a exibir <input name="autor" maxlength="80" autocomplete="nickname" required></label>
+        <label>Serviço realizado <input name="servico" maxlength="100" required></label>
+        <label>Comentário <textarea name="texto" rows="4" maxlength="600" required></textarea></label>
+        <label class="consentimento-comentario"><input name="autorizado" type="checkbox" required>
+          Autorizo a publicação do comentário com o nome informado.
+        </label>
+        <button class="botao" type="submit" [disabled]="comentarioOcupado()">Enviar comentário</button>
+      </form>
+      @if (mensagemComentario()) { <p role="status">{{ mensagemComentario() }}</p> }
     </section>
   </main>
 }

@@ -1,4 +1,4 @@
-module.exports = function registrarDepoimentos(app, banco, { autenticar, admin, rota }) {
+module.exports = function registrarDepoimentos(app, banco, { autenticar, admin, rota, limitarComentario }) {
   const caminho = '/api/admin/depoimentos';
   const campos = 'id, autor, servico, texto';
 
@@ -12,12 +12,27 @@ module.exports = function registrarDepoimentos(app, banco, { autenticar, admin, 
     res.json(rows);
   }));
 
-  const salvar = rota(async (req, res) => {
-    const { publicado, autorizado } = req.body ?? {};
-    const dados = [['autor', 80], ['servico', 100], ['texto', 600]].map(([campo, limite]) => {
-      const valor = req.body?.[campo];
+  function lerDados(corpo) {
+    return [['autor', 80], ['servico', 100], ['texto', 600]].map(([campo, limite]) => {
+      const valor = corpo?.[campo];
       return typeof valor === 'string' && valor.trim().length <= limite ? valor.trim() : '';
     });
+  }
+
+  app.post('/api/depoimentos', limitarComentario, rota(async (req, res) => {
+    const dados = lerDados(req.body);
+    if (dados.some(valor => !valor) || req.body?.autorizado !== true) {
+      return res.status(400).json({ mensagem: 'Preencha o comentário e autorize a publicação.' });
+    }
+    await banco.query(
+      'INSERT INTO aznom_depoimentos (autor, servico, texto, publicado) VALUES ($1, $2, $3, false)', dados,
+    );
+    res.sendStatus(204);
+  }));
+
+  const salvar = rota(async (req, res) => {
+    const { publicado, autorizado } = req.body ?? {};
+    const dados = lerDados(req.body);
     if (dados.some(valor => !valor) || typeof publicado !== 'boolean' || (publicado && autorizado !== true)) {
       return res.status(400).json({ mensagem: 'Preencha o depoimento e confirme a autorização antes de publicar.' });
     }

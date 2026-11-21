@@ -1,6 +1,7 @@
 ﻿import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { Observable } from 'rxjs';
+import { dataBr, dataIso } from './datas';
 
 export interface DadosPagamento {
   valor_centavos: number | null;
@@ -39,7 +40,7 @@ interface Resumo {
 const opcoes = { headers: { 'X-Aznom': '1' }, timeout: 8000 };
 const reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const hoje = () => new Intl.DateTimeFormat('sv-SE', {timeZone: 'America/Sao_Paulo'}).format(new Date());
-const dataBr = (data: string) => data.split('-').reverse().join('/');
+
 const moeda = (valor: number | string) => reais.format(Number(valor) / 100);
 const centavos = (valor: string) => /^\d{1,6}([,.]\d{1,2})?$/.test(valor)
   ? Math.round(Number(valor.replace(',', '.')) * 100) : null;
@@ -60,7 +61,7 @@ const meios = { pix: 'Pix', dinheiro: 'Dinheiro', credito: 'Cartão de crédito'
       @if (saldo() !== null && saldo()! > 0) {
         <form #entradaForm class="form-conta" (submit)="registrar($event, entradaForm)">
           <label>Valor recebido <input name="valor" inputmode="decimal" maxlength="9" required></label>
-          <label>Data do recebimento <input name="data" type="date" [attr.value]="dia" [max]="dia" required></label>
+          <label>Data do recebimento <input name="data" type="text" placeholder="DD/MM/AAAA" maxlength="10" [attr.value]="dataBr(dia)" required></label>
           <label>Tipo
             <select name="tipo"><option value="sinal">Sinal</option><option value="saldo">Pagamento do saldo</option></select>
           </label>
@@ -153,7 +154,12 @@ export class PagamentoEditor {
       this.mensagem.set('Informe um recebimento maior que zero.');
       return;
     }
-    const dados = { valor, tipo: campos.get('tipo'), meio: campos.get('meio'), data: campos.get('data') };
+    const data = dataIso(campos.get('data'));
+    if (!data || data > this.dia) {
+      this.mensagem.set('Informe uma data válida até hoje, no formato DD/MM/AAAA.');
+      return;
+    }
+    const dados = { valor, tipo: campos.get('tipo'), meio: campos.get('meio'), data };
     const assinatura = JSON.stringify(dados);
     if (this.chavePendente?.dados !== assinatura) this.chavePendente = { dados: assinatura, chave: crypto.randomUUID() };
     this.executar(this.http.post(this.caminho() + '/recebimentos', { ...dados, chave: this.chavePendente.chave }, opcoes),
@@ -189,20 +195,36 @@ export class PagamentoEditor {
   selector: 'aznom-resumo-mensal',
   styleUrl: './operacao.css',
   template: `
-    <h2 id="titulo-recebimentos">Recebimentos do mês</h2>
-    <div class="acoes">
-      <label>Mês <input #periodo type="month" [value]="mes()" (change)="selecionar(periodo.value)"></label>
-      <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="carregar()">Atualizar recebimentos</button>
-    </div>
-    @if (mensagem()) { <p role="status">{{ mensagem() }}</p> }
-    @if (dados(); as resumo) {
-      <div class="grade">
-        <article class="card card-texto"><h3>Entradas do mês</h3><p>{{ moeda(resumo.entradas) }}</p>
-          @if (+resumo.estornos) { <p>Estornos: {{ moeda(resumo.estornos) }} · Líquido: {{ moeda(+resumo.entradas - +resumo.estornos) }}</p> }
-        </article>
-        <article class="card card-texto"><h3>Saldo em aberto hoje</h3><p>{{ moeda(resumo.saldo_atual) }}</p></article>
-        <article class="card card-texto"><h3>Serviços entregues no mês</h3><p>{{ resumo.entregues }}</p></article>
+    <div class="painel-secao-topo">
+      <h2 id="titulo-recebimentos">Recebimentos do mês</h2>
+      <div class="painel-periodo">
+        <label>Mês <input #periodo type="month" [value]="mes()" (change)="selecionar(periodo.value)"></label>
+        <button class="botao botao-secundario" type="button" [disabled]="ocupado()" (click)="carregar()">Atualizar recebimentos</button>
       </div>
+    </div>
+    @if (ocupado()) { <p class="estado-painel" role="status">Carregando recebimentos…</p> }
+    @if (mensagem()) { <p class="estado-painel" role="status">{{ mensagem() }}</p> }
+    @if (dados(); as resumo) {
+      <div class="painel-indicadores">
+        <article><h3>Entradas do mês</h3><strong>{{ moeda(resumo.entradas) }}</strong></article>
+        <article><h3>Líquido após estornos</h3><strong>{{ moeda(+resumo.entradas - +resumo.estornos) }}</strong>
+          <span>Estornos: {{ moeda(resumo.estornos) }}</span></article>
+        <article><h3>Saldo em aberto hoje</h3><strong>{{ moeda(resumo.saldo_atual) }}</strong></article>
+        <article><h3>Serviços entregues no mês</h3><strong>{{ resumo.entregues }}</strong></article>
+      </div>
+      @if (entradasPorForma().length) {
+        <section class="painel-grafico" aria-labelledby="grafico-formas">
+          <h3 id="grafico-formas">Entradas por forma de pagamento</h3>
+          <ul>
+            @for (item of entradasPorForma(); track item.meio) {
+              <li>
+                <div><span>{{ meios[item.meio] }}</span><strong>{{ moeda(item.valor) }}</strong></div>
+                <span class="painel-trilho" aria-hidden="true"><span [style.width.%]="item.percentual"></span></span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
       @if (resumo.movimentos.length) {
         <div class="movimentos">
           <table>
@@ -227,6 +249,15 @@ export class ResumoMensal {
   readonly revisao = input.required<number>();
   readonly mes = signal(hoje().slice(0, 7));
   readonly dados = signal<Resumo | null>(null);
+  readonly entradasPorForma = computed(() => {
+    const totais = new Map<Movimento['meio'], number>();
+    for (const item of this.dados()?.movimentos ?? []) {
+      if (!item.estorno) totais.set(item.meio, (totais.get(item.meio) ?? 0) + item.valor_centavos);
+    }
+    const ordenados = [...totais].sort((a, b) => b[1] - a[1]);
+    const maior = ordenados[0]?.[1] || 1;
+    return ordenados.map(([meio, valor]) => ({ meio, valor, percentual: valor / maior * 100 }));
+  });
   readonly ocupado = signal(false);
   readonly mensagem = signal('');
   readonly meios = meios;
@@ -252,9 +283,11 @@ export class ResumoMensal {
         this.dados.set(dados);
         this.ocupado.set(false);
       },
-      error: () => {
+      error: (erro: HttpErrorResponse) => {
         if (consulta !== this.consulta) return;
-        this.mensagem.set('Não foi possível carregar os recebimentos do mês.');
+        this.mensagem.set(erro.status === 500
+          ? 'O servidor não conseguiu consultar os recebimentos. Confira os logs da API no Render.'
+          : 'Não foi possível carregar os recebimentos do mês. Tente atualizar.');
         this.ocupado.set(false);
       },
     });

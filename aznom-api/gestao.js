@@ -78,19 +78,33 @@ module.exports = function registrarGestao(app, banco, { autenticar, admin, rota 
   }));
 
   app.patch(atendimento + '/entrega', ...restrito, rota(async (req, res) => {
-    const { andamento, previsao, cuidados } = req.body ?? {};
+    const { andamento, previsao, cuidados, retorno, emailConta = '' } = req.body ?? {};
+    const email = typeof emailConta === 'string' ? emailConta.trim().toLowerCase() : null;
     const dataHora = typeof previsao === 'string' && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d$/.test(previsao)
       ? new Date(previsao + ':00Z') : null;
-    if (!['agendado','recebido','execucao','pronto'].includes(andamento) ||
+    const retornoIso = typeof retorno === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(retorno)
+      ? new Date(retorno + 'T12:00:00Z') : null;
+    if (email == null || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+        (retorno != null && retorno !== '' && (!retornoIso || !Number.isFinite(retornoIso.getTime()) ||
+          retorno.startsWith('0000') || retornoIso.toISOString().slice(0, 10) !== retorno)) ||
+        !['agendado','recebido','execucao','pronto'].includes(andamento) ||
         (previsao !== '' && (!dataHora || previsao.startsWith('0000') || !Number.isFinite(dataHora.getTime()) || dataHora.toISOString().slice(0,16) !== previsao)) ||
         typeof cuidados !== 'string' || cuidados.trim().length > 1200) {
       return res.status(400).json({ mensagem: 'Confira a etapa do serviço, a previsão e os cuidados recomendados.' });
     }
     const { rowCount } = await banco.query(`
+      WITH conta_cliente AS (SELECT id FROM aznom_contas WHERE email=$7 AND papel='cliente')
       UPDATE aznom_atendimentos SET andamento=CASE WHEN status='confirmado' THEN $2 ELSE andamento END,
-        previsao_entrega=$3, cuidados=$4 WHERE id::bigint=$1 AND status<>'cancelado'
-    `, [req.params.id, andamento, previsao || null, cuidados.trim()]);
-    if (!rowCount) return res.status(409).json({ mensagem: 'Este atendimento não está disponível para edição da entrega.' });
+        previsao_entrega=$3, cuidados=$4,
+        retorno_sugerido=CASE WHEN $5 THEN $6::date ELSE retorno_sugerido END,
+        conta_id=coalesce(conta_id, (SELECT id FROM conta_cliente))
+      WHERE id::bigint=$1 AND status<>'cancelado'
+        AND ($7='' OR (conta_id IS NULL AND EXISTS (SELECT 1 FROM conta_cliente)))
+    `, [req.params.id, andamento, previsao || null, cuidados.trim(), retorno != null, retorno || null, email]);
+    if (!rowCount) return res.status(409).json({
+      mensagem: email ? 'Confira o e-mail da conta do cliente e se o atendimento ainda pode ser vinculado.' :
+        'Este atendimento não está disponível para edição da entrega.',
+    });
     res.sendStatus(204);
   }));
 
@@ -174,7 +188,12 @@ module.exports = function registrarGestao(app, banco, { autenticar, admin, rota 
           WHERE status='confirmado' AND data=agora::date AND hora>=agora::time
           ORDER BY hora, id LIMIT 5
         ) t), '[]') AS proximos,
-        (SELECT count(*)::integer FROM aznom_orcamentos WHERE status='aguardando') AS orcamentos_aguardando,
+        (SELECT count(*)::integer FROM aznom_orcamentos WHERE status IN ('recebido','aguardando')) AS orcamentos_aguardando,
+        (SELECT count(*)::integer FROM aznom_depoimentos WHERE NOT publicado) AS comentarios_pendentes,
+        (SELECT count(*)::integer FROM aznom_atendimentos
+          WHERE status='confirmado' AND previsao_entrega::date=agora::date) AS retiradas_hoje,
+        (SELECT count(*)::integer FROM aznom_agenda
+          WHERE tipo='cursos' AND fim>=agora::date AND inicio<=agora::date+7) AS turmas_proximas,
         coalesce((SELECT jsonb_agg(t ORDER BY t.inicio, t.id) FROM (
           SELECT a.id, a.inicio::text, a.fim::text, a.capacidade-a.confirmadas AS vagas,
             count(e.id)::integer AS espera

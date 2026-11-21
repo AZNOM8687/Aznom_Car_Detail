@@ -154,4 +154,22 @@ SELECT NULL::integer, m.id, p.valor, p.tipo, 'legado'
 FROM aznom_matriculas m
 CROSS JOIN LATERAL (VALUES (m.sinal_centavos,'sinal'),(m.restante_pago_centavos,'saldo')) p(valor,tipo)
 WHERE p.valor>0 AND NOT EXISTS (SELECT 1 FROM aznom_recebimentos r WHERE r.matricula_id=m.id);
+CREATE TABLE IF NOT EXISTS aznom_conteudo_curso (
+  id integer PRIMARY KEY CHECK (id = 1),
+  conteudo jsonb NOT NULL
+);
+ALTER TABLE aznom_orcamentos
+  ADD COLUMN IF NOT EXISTS conta_id integer REFERENCES aznom_contas(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS horario_preferido varchar(120);
+ALTER TABLE aznom_atendimentos
+  ADD COLUMN IF NOT EXISTS conta_id integer REFERENCES aznom_contas(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS retorno_sugerido date;
+CREATE INDEX IF NOT EXISTS aznom_atendimentos_conta ON aznom_atendimentos(conta_id);
+CREATE TABLE IF NOT EXISTS aznom_fotos_orcamento (
+  orcamento_id integer REFERENCES aznom_orcamentos(id) ON DELETE CASCADE,
+  posicao integer CHECK (posicao BETWEEN 1 AND 3),
+  formato text NOT NULL CHECK (formato IN ('image/jpeg','image/png','image/webp')),
+  dados bytea NOT NULL CHECK (octet_length(dados) <= 1048576),
+  PRIMARY KEY (orcamento_id, posicao)
+);
 COMMIT;
